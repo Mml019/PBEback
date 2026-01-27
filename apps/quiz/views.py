@@ -13,6 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from .models import *
 
+
 class QuizViews(APIView):
     """Get a random Quizzes and returns them"""
 
@@ -123,7 +124,6 @@ class RespondantViews(CreateAPIView):
         for key in self.schema:
             if key not in data.keys():
                 data[key] = None
-                print(data[key])
 
         with transaction.atomic():
             try:
@@ -193,12 +193,12 @@ class RespondantViews(CreateAPIView):
 
                 # academic_level = AcademicLevel(academic_lvl=None, description=None, year=YearAcademicLevel(year=2025))
                 academic_level = None
-              
+
                 if data["year_academic_lvl"] is not None:
                     year, _ = YearAcademicLevel.objects.get_or_create(
                         year=int(data["year_academic_lvl"])
                     )
-                
+
                     academic_level = AcademicLevel(
                         academic_lvl=data["academic_level"], description=None, year=year
                     )
@@ -221,7 +221,9 @@ class RespondantViews(CreateAPIView):
                     username=None, password=None, is_staff=False, is_superuser=False
                 )
                 # add group and perms to user
-                
+                # group = Group.objects.get(name='respondant')
+                # myuser.groups.add(group)
+
                 # pbe_training =None
                 # # only if is true
                 # if data["PBE_training"] == "Sí":
@@ -330,4 +332,3 @@ class RespuestaView(CreateAPIView):
         except IntegrityError as i:
             return Response({'error': f'Conflicto de usuario ya respondió esa pregunta {i}: {serializer.errors}.'}
                                         , status=HTTP_409_CONFLICT)
-

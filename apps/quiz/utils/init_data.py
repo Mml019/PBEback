@@ -22,7 +22,7 @@ def load_data(apps, schema_editor):
         "Público",
         "Privado",
         "Centro concertado o mixto",
-        # "Otro"
+        # "Otros"
     ]
 
     enviroments = [
@@ -32,7 +32,7 @@ def load_data(apps, schema_editor):
         "Sistema escolar",
         "Universidad",
         "Consulta propia",
-        # "Otro"
+        # "Otros"
     ]
 
     activities = ["Asistencial", "Investigacion", "Docencia", "Administracion", "Otra"]

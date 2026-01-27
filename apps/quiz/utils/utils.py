@@ -13,4 +13,3 @@ def between1_5(value):
 def year(value):
     if value < (datetime.now.year-70) or value >= datetime.now.year:
         return ValidationError(f' No puede ser un año superior al actual o anterior a {datetime.now.year-70}')
-    

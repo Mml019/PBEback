@@ -44,8 +44,3 @@ admin.site.register(Sector)
 # admin.site.register(Dedication)
 # admin.site.register(Envprof)
 # admin.site.register(Secprof)
-
-
-
-
-
