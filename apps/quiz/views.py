@@ -13,7 +13,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from .models import *
 
-
 class QuizViews(APIView):
     """Get a random Quizzes and returns them"""
 
