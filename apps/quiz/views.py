@@ -1,8 +1,9 @@
 import random
 from datetime import time
+import uuid
 
 from api.serializers import *
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from rest_framework.decorators import action
 from rest_framework.generics import *
 from rest_framework.response import Response

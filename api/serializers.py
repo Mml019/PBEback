@@ -3,7 +3,7 @@ from rest_framework.serializers import ValidationError
 from apps.quiz.models import *
 
 import re
-from datetime import datetime
+from datetime import datetime, time
 
 # The intermediary classes don't have a serializer
 class DimensionSerializer(serializers.ModelSerializer):
