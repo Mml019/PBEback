@@ -3,7 +3,6 @@
 # from django.dispatch import receiver
 # from django.db.models.signals import post_migrate
 
-
 def assign_permissions(type):
 
     permissions = []
