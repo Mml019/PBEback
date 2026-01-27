@@ -6,8 +6,6 @@ import re
 from datetime import datetime
 
 # The intermediary classes don't have a serializer
-
-
 class DimensionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dimension
@@ -223,14 +221,61 @@ class RespondantSerializer(serializers.ModelSerializer):
 
 
 class RespuestaSerializer(serializers.ModelSerializer):
-    respondant = RespondantSerializer
-    question = QuestionSerializer
-    answer = OptionSerializer
+
+    option = serializers.PrimaryKeyRelatedField(
+        queryset=Option.objects.all(),
+        source="answer",
+        write_only=True
+    )
+    question = serializers.PrimaryKeyRelatedField(
+        queryset=Question.objects.all(),
+        write_only=True
+    )
+    user = serializers.UUIDField(
+        source="respondant",
+        write_only=True
+    )
+    time = serializers.IntegerField(write_only=True)
+
+    def validate_time(self, value):
+        seconds = int(value)
+
+        # Calculate hours, minutes and seconds
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        
+        # Create object 'time' 
+        value = time(hour=hours, minute=minutes, second=seconds)
+        return value        
 
     class Meta:
         model = Respuesta
-        field = ["answer", "time", "date", "respondant", "question", "pk"]
+        fields = ['option', 'time', 'user', 'question', 'is_correct']# is_correct, pk]
+        read_only_fields = ["is_correct"]
 
+    # Validate if answer exists before or not by this user
+    def validate(self, attrs):
+        if Respuesta.objects.filter(
+            respondant_id=attrs["respondant"],
+            question=attrs["question"]
+        ).exists():
+            raise serializers.ValidationError(
+                f"El usuario {attrs["respondant"]} ya respondió esa pregunta {attrs["question"]}."
+            )
+        return attrs
+
+    def create(self, validated_data):
+        user_uuid = validated_data['respondant']
+        respondant = Respondant.objects.get(respondant_id=user_uuid)
+        validated_data['respondant'] = respondant
+
+        validated_data['is_correct'] = OptionQuestion.solutions.filter(
+        idO=validated_data['answer'],
+        idP=validated_data['question']
+        ).exists()
+        
+        return super().create(validated_data)
 
 class EnviromentSerializer(serializers.ModelSerializer):
     class Meta:
