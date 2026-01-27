@@ -107,37 +107,6 @@ class MyUserSerializer(serializers.ModelSerializer):
         fields = "__all__"
         extra_kwargs = {"password": {"write_only": True}}
 
-# class MyUserSerializerRegistration(serializers.ModelSerializer):
-#     # password1 = serializers.CharField(write_only= True)
-#     # password2 = serializers.CharField(write_only= True)
-
-#     class Meta:
-#         model = MyUser
-#         fields = (
-#             # 'id',
-#             'username',
-#             'password',
-#             'is_staff'
-#         )
-#         extra_kwargs = {'password': {'write_only': True} }
-
-#     # def validate(self, attrs):
-#     #     if attrs['password1'] != attrs['password2']:
-#     #         return serializers.ValidationError("Password don't match")
-#     #     if attrs['username'] is None or ' ':
-#     #         return serializers.ValidationError("Username can't be empty")
-#     #     return True
-
-#     # def create(self, validated_data):
-#     #     password = validated_data.pop['password1']
-#     #     validated_data.pop['password2']
-#     #     return MyUser.objects.create(password=password, is_staff=True, **validated_data)
-
-#     # def update(self, instance, validated_data):
-#     #     if validated_data['password1'] != validated_data['password2']:
-#     #         return serializers.ValidationError("Password don't match")
-#     #     return super().update(instance, password=validated_data['password1'], **validated_data)
-
 class ProfesionalAreaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfesionalArea
