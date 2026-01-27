@@ -21,7 +21,6 @@ class DimensionSerializer(serializers.ModelSerializer):
             return ValidationError(" Debe seleccionar un valor del 1 al 5 ")
         return value
 
-
 class InterestAreaSerializer(serializers.ModelSerializer):
     idD = DimensionSerializer
 
@@ -44,7 +43,6 @@ class InterestAreaSerializer(serializers.ModelSerializer):
             return ValidationError("Area de interés no coincide con su dimensión")
         return value
 
-
 class CoreContentSerializer(serializers.ModelSerializer):
     int_area = InterestAreaSerializer
 
@@ -52,14 +50,12 @@ class CoreContentSerializer(serializers.ModelSerializer):
         model = CoreContent
         fields = "__all__"
 
-
 class OptionSerializer(serializers.ModelSerializer):
     # question = QuestionSerializer
 
     class Meta:
         model = Option
         fields = ["idO", "option"]  # without list of question
-
 
 class OptionQuestionSerializer(serializers.ModelSerializer):
     idO = OptionSerializer
@@ -69,9 +65,10 @@ class OptionQuestionSerializer(serializers.ModelSerializer):
         model = Question
         fields = ["idP", "idO", "motive", "pk"]
 
-
 class QuestionSerializer(serializers.ModelSerializer):
     idD = DimensionSerializer()
+    idA = InterestAreaSerializer()
+    idC = CoreContentSerializer()
     idO = OptionSerializer(source="question_values.all", many=True, read_only=True)
 
     class Meta:
@@ -85,15 +82,15 @@ class QuestionSerializer(serializers.ModelSerializer):
             "version",
             "date",
             "idD",
+            "idA",
+            "idC",
             "idO",
         ]
-
 
 class QuizSerializerBasic(serializers.ModelSerializer):
     class Meta:
         model = Quiz
         fields = ["idQ", "file", "fechaC", "fechaA", "question"]
-
 
 # This serializer displays all the questions that belong to a quiz
 class QuizSerializer(serializers.ModelSerializer):
@@ -103,14 +100,12 @@ class QuizSerializer(serializers.ModelSerializer):
         model = Quiz
         fields = ["idQ", "file", "fechaC", "fechaA", "question"]
 
-
 # User Serializer
 class MyUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = MyUser
         fields = "__all__"
         extra_kwargs = {"password": {"write_only": True}}
-
 
 # class MyUserSerializerRegistration(serializers.ModelSerializer):
 #     # password1 = serializers.CharField(write_only= True)
@@ -143,36 +138,32 @@ class MyUserSerializer(serializers.ModelSerializer):
 #     #         return serializers.ValidationError("Password don't match")
 #     #     return super().update(instance, password=validated_data['password1'], **validated_data)
 
-
 class ProfesionalAreaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfesionalArea
-        field = "__all__"
-
+        fields= "__all__"
 
 class SatisfationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Satisfation
-        field = "__all__"
+        fields= "__all__"
 
     def validate_value(self, value):
         if value < 0 or value > 5:
             return ValidationError("La puntuación debe ser entre 0 y 5")
         return value
 
-
 class YearAcademicLevelSerializer(serializers.ModelSerializer):
     class Meta:
         model = YearAcademicLevel
-        field = "__all__"
-
+        fields= "__all__"
 
 class AcademicLevelSerializer(serializers.ModelSerializer):
     year = YearAcademicLevelSerializer
 
     class Meta:
         model = AcademicLevel
-        field = "__all__"
+        fields= "__all__"
 
         def validate_year(self, value):
             # if attrs['tittle'] not in TITTLE_CHOICES:
@@ -181,7 +172,6 @@ class AcademicLevelSerializer(serializers.ModelSerializer):
                 return ValidationError(
                     f" No puede ser un año superior al actual o anterior a {datetime.now.year-70}"
                 )
-
 
 class RespondantSerializer(serializers.ModelSerializer):
     profarea = ProfesionalAreaSerializer
@@ -218,7 +208,6 @@ class RespondantSerializer(serializers.ModelSerializer):
             return ValidationError("Debe seleccionar si tiene conocimientos previos en PBE")
 
         return super().validate(attrs)
-
 
 class RespuestaSerializer(serializers.ModelSerializer):
 
@@ -280,20 +269,17 @@ class RespuestaSerializer(serializers.ModelSerializer):
 class EnviromentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enviroment
-        field = ["idEnv", "enviroment"]
-
+        fields= ["idEnv", "enviroment"]
 
 class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
-        field = ["idAct", "activity"]
-
+        fields= ["idAct", "activity"]
 
 class SectorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sector
-        field = ["idSec", "sector"]
-
+        fields= ["idSec", "sector"]
 
 class ProfesionalSerializer(serializers.ModelSerializer):
     profesional = RespondantSerializer
@@ -303,7 +289,7 @@ class ProfesionalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profesional
-        field = [
+        fields= [
             "profesional",
             "supervisor",
             "dedicationW",
@@ -313,10 +299,9 @@ class ProfesionalSerializer(serializers.ModelSerializer):
             "enviroments",
         ]
 
-
 class DedicationSerializer(serializers.ModelSerializer):
     # profesional = ProfesionalSerializer
     # activity = ActivitySerializer
     class Meta:
         model = Sector
-        field = ["profesional", "activity", "percentatge", "pk"]
+        fields= ["profesional", "activity", "percentatge", "pk"]
