@@ -1,7 +1,8 @@
 import io
+import env
 import re
-import environ
 from datetime import datetime, time
+from django.shortcuts import redirect, render
 
 # imports to Normalize and clean data
 import openpyxl as xl
@@ -10,7 +11,6 @@ import pandas as pd
 from .models import OptionQuestion as oqm
 from .models import *
 from api.serializers import *
-from .utils.permissions import *
 
 from django.db import transaction
 from django.core.exceptions import ValidationError
@@ -25,6 +25,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from .pagination import SmallPageNumberPagination
 
+
 # -------- USER FUNTIONS -----------
 class LoginView(APIView):
 
@@ -38,11 +39,14 @@ class LoginView(APIView):
 
         if user is not None:
             login(request, user)
+            return render(request, "login.html", user, status=HTTP_200_OK)
             return Response({"success": user}, status=HTTP_200_OK)
 
-        return Response(
-            {"error": "Request method not allowed", "user": user},
-            status=HTTP_400_BAD_REQUEST,
+        return render(
+            request,
+            "login.html",
+            {"error": "No existe este usuario, vuelva a intentarlo o registrese.", "user": user},
+            status=HTTP_404_NOT_FOUND,
         )
 
 
@@ -102,22 +106,25 @@ class LogoutView(APIView):
         except:
             return Response({"error": user}, status=HTTP_404_NOT_FOUND)
 
+
 # ----------- QUIZ APP----------------
 class QuizViews(APIView):
     parser_classes = [MultiPartParser]
 
     """ To get a quiz by id"""
+
     def get(self, request, id):
         # id = request.query_params.get('quiz')
 
         quiz = Quiz.objects.get(id)
         if quiz is None:
             return Response({"error": "Not found or not exits"}, status=HTTP_404_NOT_FOUND)
-        quiz_serial = QuizSerializer(quiz)#, many=True)
+        quiz_serial = QuizSerializer(quiz)  # , many=True)
 
         return Response({"success": quiz_serial.data}, status=HTTP_200_OK)
 
     """ To show all quizzes paginated by 20 size to the admin"""
+
     def get(self, request):
         if Quiz.objects.exists() is False:
             return Response({"error": "There are any quizzes"}, status=HTTP_204_NO_CONTENT)
@@ -133,7 +140,7 @@ class QuizViews(APIView):
 
     def post(self, request):
         # env = environ.Env()
-        
+
         try:
             file = request.FILES.get("file")
         except:
@@ -151,9 +158,9 @@ class QuizViews(APIView):
         # Dataframe to read and normalize
         if file.name.endswith("csv"):
             try:
-             
+
                 df = pd.read_csv(file, encoding="utf-8", delimiter=";")
-               
+
             except:
                 # Garantizes CSV UTF-8 because accents interpreted errors
                 memo_file = ensureDecode(file)
@@ -168,26 +175,25 @@ class QuizViews(APIView):
         try:
             df_normal = normalizeFile(df)
         except ValidationError as v:
-            return Response({f'Tiene valores vacíos. {v}'}, status=HTTP_400_BAD_REQUEST)
+            return Response({f"Tiene valores vacíos. {v}"}, status=HTTP_400_BAD_REQUEST)
         with transaction.atomic():
             quiz = Quiz.objects.create(file=file.name)
-            '''question_BD = []
-            appearance_BD = []'''
-            
+            """question_BD = []
+            appearance_BD = []"""
+
             for i in range(len(df_normal)):
-            
+
                 try:
                     dimensionN, _ = Dimension.objects.get_or_create(
-                        orden=df_normal.iloc[i]["ordenD"], 
-                        dimension=df_normal.iloc[i]["dimension"]
-                    )             
+                        orden=df_normal.iloc[i]["ordenD"], dimension=df_normal.iloc[i]["dimension"]
+                    )
 
                     areaIntN, _ = InterestArea.objects.get_or_create(
                         orden=df_normal.iloc[i]["ordenA"],
                         int_area=df_normal.iloc[i]["area"],
                         idD=dimensionN,
                     )
-                    
+
                     coreCont, _ = CoreContent.objects.get_or_create(
                         core_cont=df_normal.iloc[i]["contenido"],
                         idA=areaIntN,
@@ -203,21 +209,21 @@ class QuizViews(APIView):
                     question = Question.objects.create(
                         numero=i + 1,
                         statement=df_normal.iloc[i]["enunciado"],
-                        time=time(0,0,30),
+                        time=time(0, 0, 30),
                         difficult_level=df_normal.iloc[i]["dificultad"],
                         version=0,
                         idD=dimensionN,
-                        idA = areaIntN,
-                        idC = coreCont
+                        idA=areaIntN,
+                        idC=coreCont,
                     )
-                    '''
+                    """
                     question_BD.append(question)
                     appearance = AppearanceQuiz(quiz=quiz, question=question)
                     question.full_clean
                     appearance.full_clean
                     question_BD.append(question)
                     appearance_BD.append(appearance)
-                    '''
+                    """
                     # Apperance model is through many to many field quiz question
                     quiz.question.add(question)
 
@@ -226,30 +232,30 @@ class QuizViews(APIView):
                         {"error": f"Error al insertar la pregunta de la fila {i+1}, Error: {ve}"},
                         status=HTTP_400_BAD_REQUEST,
                     )
-                '''option_BD = []
-                optionQ_BD = []'''
+                """option_BD = []
+                optionQ_BD = []"""
                 for op in df_normal.iloc[i]["opciones"]:
                     try:
 
                         valor_op_mapeado = Opciones[op]
-                        '''
+                        """
                         option = Option(valor_op_mapeado)
                         option.full_clean
                         # Create only one kind of option per quetsion in Option Table
                         if option not in option_BD:
                             option_BD.append(option)
-                        '''
-                            
+                        """
+
                         # Create only one kind of option per quetsion in Option Table
                         option, _ = Option.objects.get_or_create(option=valor_op_mapeado)
-                        
-                        '''optionQ = OptionQuestion(idO=option, idP=question, motive=None)
-                        optionQ.full_clean'''
+
+                        """optionQ = OptionQuestion(idO=option, idP=question, motive=None)
+                        optionQ.full_clean"""
                         optionQ = oqm.objects.create(idP=question, idO=option, motive=None)
                         if op == df_normal.iloc[i]["solucion"]:
                             optionQ.motive = df_normal.iloc[i]["motivo"]
                             optionQ.save()
-                       
+
                         # optionQ_BD.append(optionQ)
 
                     except ValidationError as ve:
@@ -259,7 +265,7 @@ class QuizViews(APIView):
                             },
                             status=HTTP_400_BAD_REQUEST,
                         )
-                    
+
             #     if i >= env("batch_size"):
             #         Question.objects.bulk_create(question_BD, batch_size=env("batch_size"))
             #         AppearanceQuiz.objects.create(appearance_BD, batch_size=env("batch_size"))
@@ -275,6 +281,8 @@ class QuizViews(APIView):
         return Response({"success"}, status=HTTP_200_OK)
 
     # --------- other funtions ---------
+
+
 Opciones = {
     "Verdadero": "Verdadero",
     "True": "Verdadero",
@@ -292,6 +300,8 @@ Opciones = {
     Ensures right decode to CSV if is not a UTF-8 CSV, because accents can't be resolved corrected.
     Returns a new csv file in memory to be decoded into a new utf-8 file.
 """
+
+
 def ensureDecode(file):
     contenido_str = file.read().decode("latin-1")
     # To read text and not bytes in memory we need io library
@@ -300,7 +310,7 @@ def ensureDecode(file):
 
 
 def normalizeFile(df):
-    
+
     NEW_header = [
         "enunciado",
         "dimension",
@@ -311,25 +321,25 @@ def normalizeFile(df):
         "motivo",
         "opciones",
     ]
-    
+
     # Set columns header
     df.columns = NEW_header
-    
+
     # set data types
     df = df.astype("string")
     df["dificultad"] = df["dificultad"].astype("int")
 
     # NA values
     df["dificultad"] = df["dificultad"].fillna(0)
-    
-    # Delete all NaN rows
-    df = df.dropna(how='all')
 
-    # Manage NA values of all dataframe 
+    # Delete all NaN rows
+    df = df.dropna(how="all")
+
+    # Manage NA values of all dataframe
     # fill value as back or forward value
     # bfill is back fill with the next no NaN value
     # df_bfill = df.bfill()
-    df=df.ffill()
+    df = df.ffill()
 
     # Advertise NaN values
     nan_positions = df.isna()
@@ -338,20 +348,20 @@ def normalizeFile(df):
     nan_rows_columns = nan_locations[nan_locations].index
     for row, col in nan_rows_columns:
         raise ValidationError(f"Fila: {row}, Columna: {col} no tiene un valor")
-       
+
     # Guardar orden
     df["ordenD"] = df["dimension"].str.extract(r"(\d+)\.").astype(int)
-    
+
     df["dimension"] = df["dimension"].str.extract(r"([a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+)")
     df["ordenA"] = df["area"].str.extract(r"(?<=\d\.)(\d+)").astype(int)
     df["area"] = df["area"].str.extract(r"([a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+)")
     df["solucion"] = df["solucion"].map(Opciones).astype("string")
     df["opciones"] = df["opciones"].str.split(";")
 
-        # determine separator
+    # determine separator
     signos = ",;:?!.-_¨´+*^`[]¿¡'&%()$#·@!º\ª{} "
     signos_f = ",;:-_¨´+*^`[¿'&%($#·@º\ª{ "
-    
+
     # # delete blanks before and after each colum
     for i in df.select_dtypes(include=["string"]).columns:
         df[i] = df[i].str.strip()
