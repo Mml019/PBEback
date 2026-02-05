@@ -1,7 +1,7 @@
-# from django.contrib.auth.models import Group, Permission
-# from django.db import transaction
-# from django.dispatch import receiver
-# from django.db.models.signals import post_migrate
+from django.contrib.auth.models import Group, Permission
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from apps.quiz.models import MyUser 
 
 def assign_permissions(type):
 
@@ -91,56 +91,6 @@ def assign_permissions(type):
     except Group.DoesNotExist:
         return f"Grupo {type} no existe. No puede asignarsele permisos."
 
-
-# @receiver(post_migrate)
-# def create_groups_and_permissions(sender, **Kwargs):
-#     try:
-#         group, bool = Group.objects.get_or_create(name="interviewer")
-#         # has been before created return False
-#         if bool:
-#             print(f'Interviewer {bool}')
-#             assign_permissions("interviewer")
-
-#         group, bool = Group.objects.get_or_create(name="respondant")
-#         if bool:
-#             print(f'Respondant {bool}')
-#             assign_permissions("respondant")
-
-#     except Exception as e:
-#         return f"Error creating group {type}. Error: {e}"
-
-
-# #         return create_group(apps, schema_editor, 'interviewer')
-
-# #     def create_group_respondant(apps, schema_editor):
-# #         return create_group(apps, schema_editor, 'respondant')
-# 
-from django.contrib.auth.models import Group, Permission
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from apps.quiz.models import MyUser 
-
-# def assign_permissions(type):
-#     """Función para asignar permisos según el grupo""" 
-#     permissions = [] 
-#     if type == "interviewer": 
-#         permissions.extend([
-#             Permission.objects.get(codename="add_quiz"),
-#             Permission.objects.get(codename="view_quiz"),
-#               Permission.objects.get(codename="change_quiz"), 
-#               Permission.objects.get(codename="delete_quiz"), 
-#               # Agrega los permisos adicionales para 'interviewer' 
-#             ]) 
-#     elif type == "respondant": 
-#         permissions.extend([ 
-#             Permission.objects.get(codename="view_question"),
-#               Permission.objects.get(codename="view_option"), 
-#               # Agrega los permisos adicionales para 'respondant' 
-#             ]) 
-#     group = Group.objects.get(name=type) 
-#     group.permissions.set(permissions) 
-#     group.save() 
-
 @receiver(post_save, sender=MyUser) 
 def create_group_and_permissions_after_user_creation(sender, instance, created, **kwargs):
     """Asignar permisos cuando se crea un nuevo usuario""" 
@@ -152,12 +102,12 @@ def create_group_and_permissions_after_user_creation(sender, instance, created, 
         else: 
             type = "respondant" 
         group, bool = Group.objects.get_or_create(name=type) 
-        # Asignamos permisos al grupo 
+        # Asignamos permisos al grupo si se crea por primera vez
         if bool:
            perm = assign_permissions(type) 
-           instance.user_permissions.add(perm) 
+           instance.user_permissions.set(perm) 
         # Agregamos el usuario al grupo correspondiente 
         instance.groups.add(group)
         instance.save() 
         # Guarda el usuario nuevamente si es necesario 
-        print(f"Permisos asignados al grupo {type} para el usuario {instance.username}") 
+        print(f"Permisos asignados al grupo {group} para el usuario {instance.username}") 
