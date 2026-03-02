@@ -165,16 +165,6 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
             user = self.model(username, password, is_staff=is_staff, **extra_fields)
             user.save()
-            # if user.is_staff or user.is_superuser:
-            #     type = 'interviewer'
-            # else:
-            #     type = 'respondant'
-
-            # group, bool = Group.objects.get_or_create(name=type)
-            # # user.groups.add(group)
-
-            # if bool:# group.permissions.exists():
-            #     assign_permissions(type)
 
             return user
 
@@ -185,6 +175,7 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
             user.set_password(password)
 
             user.save()
+            print(user)
 
             return user
 
@@ -281,7 +272,7 @@ class Respondant(models.Model):
     )
 
     def __str__(self):
-        return f"ID: {self.respondant.id} Edad: {str(self.age)} Sexo: {self.sex} Nacionalidad: {self.nationality } Ciudad: {self.city} Región:  {self.region} Nivel académico: {self.academic_level.academic_lvl} Año del nivel académico: {self.academic_level.year} Area profesional/estudio:{self.profarea.values_list(flat=True)} Nivel de PBE: {self.level_PBE} Conocimiento en PBE {self.PBE_knownledge}  Especialidad: {self.speciality}"
+        return f"ID: {self.respondant.id} Edad: {str(self.age)} Sexo: {self.sex} Nacionalidad: {self.nationality } Ciudad: {self.city} Región:  {self.region} Nivel académico: {self.academic_level} Año del nivel académico: {self.academic_level.year if self.academic_level.year else 'N/A' } Area profesional/estudio:{self.profarea.values_list(flat=True)} Nivel de PBE: {self.level_PBE or "N/A"} Conocimiento en PBE {self.PBE_knownledge} PBE training:{self.PBE_training or "N/A"} Especialidad: {self.speciality or "N/A"}"
 
 
 class SatisfationRes(models.Model):

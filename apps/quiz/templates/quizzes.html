@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static%}
+{% block title%}Cuestionarios{%endblock%}
+{% block content%}
+<h2>Mis cuestionarios:</h2>
+{% if paginator.results.quizzes %}
+<ul>
+{% for quiz in quizzes%}
+    <li id="quiz_{{quiz.idQ}}">
+        <div id="quiz" class="d-flex justify-content-center">
+            <img id="quiz_img" src=""></img>
+            <span id="quiz_name" >{{quiz.file}}</span>
+        </div>
+    </li>
+{%endfor%}
+</ul>
+{% else %}
+
+{% endif %}
+{% endblock%}
+<script src="{% static "js/quizzes.js" %}"></script>

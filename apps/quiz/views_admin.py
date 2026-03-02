@@ -1,8 +1,7 @@
 import io
-import env
-import re
-from datetime import datetime, time
-from django.shortcuts import redirect, render
+from datetime import time
+from django.shortcuts import redirect, render, get_object_or_404, get_list_or_404
+from django import forms
 
 # imports to Normalize and clean data
 import openpyxl as xl
@@ -11,52 +10,73 @@ import pandas as pd
 from .models import OptionQuestion as oqm
 from .models import *
 from api.serializers import *
+from .forms import LoginForm
 
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate, login, logout
-from django.http.response import HttpResponse
 from rest_framework.generics import *
 from rest_framework.parsers import FileUploadParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.status import *
-from rest_framework.views import APIView
+from rest_framework.views import View, APIView
 from rest_framework.viewsets import ModelViewSet
 
 from .pagination import SmallPageNumberPagination
 
-
 # -------- USER FUNTIONS -----------
-class LoginView(APIView):
+class LoginView(View):
 
+    def get(self, request):
+        form = LoginForm()
+        return render(request, "login.html", {'form': form}, status=HTTP_200_OK)
+        return render(request, 'login.html',status=HTTP_200_OK)
+        
     # login
     def post(self, request):
-        user = authenticate(
-            request,
-            username=request.POST["username"],
-            password=request.POST["password"],
-        )
+        form = LoginForm(request.POST)
 
-        if user is not None:
-            login(request, user)
-            return render(request, "login.html", user, status=HTTP_200_OK)
-            return Response({"success": user}, status=HTTP_200_OK)
+        if form.is_valid():   # ← OBLIGATORIO
+            username = form.cleaned_data["username"]
+            password = form.cleaned_data["password"]
 
-        return render(
-            request,
-            "login.html",
-            {"error": "No existe este usuario, vuelva a intentarlo o registrese.", "user": user},
-            status=HTTP_404_NOT_FOUND,
-        )
+            user = authenticate(
+                request,
+                username=username,
+                password=password,
+            )
 
+            if user is not None:
+                if user.is_active:
+                    login(request, user)
+                    return render(request, "quizzes.html", {'user': user}, status=HTTP_200_OK)
+                else: 
+                    message = f'This user is not active, please contact with an admin.'
+                    form.add_error(None, error=message)
 
+                    return  render(request, "login.html", {'form': form}, status=HTTP_403_FORBIDDEN)
+            else:
+                if MyUser.objects.filter(username=request.POST["username"]).exists():
+
+                    message = f'Contraseña incorrecta para usuario {request.POST["username"]}, vuelva a intentarlo.'
+                    # forms.ValidationError(message=message, code=HTTP_400_BAD_REQUEST)
+                    form.add_error(field='password', error=message)
+
+                else:
+                    message = 'Usuario inexistente, por favor regístrese por un admin.'
+                    # forms.ValidationError(message=message, code=HTTP_404_NOT_FOUND)
+                    form.add_error(field='username', error=message)
+            
+                return  render(request, "login.html", {'form': form}, status=HTTP_404_NOT_FOUND)
+        return  render(request, "login.html", {'form': form}, status=HTTP_200_OK)
+        
 class LogoutView(APIView):
     # logout
     def post(self, request):
         logout(request)
-        return Response("logout", status=HTTP_200_OK)
+        return redirect('login/')
 
-    # class Registration(CreateAPIView):
+class Registration(CreateAPIView):
 
     # register
     def post(self, request):
@@ -80,39 +100,11 @@ class LogoutView(APIView):
             return Response({"success": serializer.data, "user": user}, status=HTTP_201_CREATED)
         return Response({"error": serializer.errors}, status=HTTP_400_BAD_REQUEST)
 
-    # class Password(APIView):
-
-    # change password
-    def put(self, request, user_id):
-
-        user = MyUser.objects.get(user_id)
-        # if user.DoesNotExist:
-        try:
-            serializer = MyUserSerializerRegistration(user, request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"success": serializer.data}, status=HTTP_200_OK)
-            return Response({"error": serializer.data}, status=HTTP_400_BAD_REQUEST)
-        except:
-            return Response({"error": user}, status=HTTP_404_NOT_FOUND)
-
-    # forgot password
-    def get(self, request):
-        try:
-            user = MyUser.objects.get(username=request.data["username"])
-            serializer = MyUserSerializerRegistration(user)
-            serializer.update()
-            return Response({"success": serializer.data["password"]}, status=HTTP_200_OK)
-        except:
-            return Response({"error": user}, status=HTTP_404_NOT_FOUND)
-
-
 # ----------- QUIZ APP----------------
 class QuizViews(APIView):
     parser_classes = [MultiPartParser]
 
     """ To get a quiz by id"""
-
     def get(self, request, id):
         # id = request.query_params.get('quiz')
 
@@ -124,19 +116,20 @@ class QuizViews(APIView):
         return Response({"success": quiz_serial.data}, status=HTTP_200_OK)
 
     """ To show all quizzes paginated by 20 size to the admin"""
-
     def get(self, request):
         if Quiz.objects.exists() is False:
             return Response({"error": "There are any quizzes"}, status=HTTP_204_NO_CONTENT)
 
         quizzes = Quiz.objects.all()
-        quiz_serial = QuizSerializer(quizzes, many=True)
-
+        
         paginator = SmallPageNumberPagination()
-        quiz_serial_paginated = paginator.paginate_queryset(quiz_serial)
-
+        quiz_paginated = paginator.paginate_queryset(quizzes, request)
+        
+        quiz_serial = QuizSerializer(quiz_paginated, many=True)
         # paginate the response
-        return paginator.get_paginated_response({"quizzes": quiz_serial_paginated.data})
+        paginator= paginator.get_paginated_response({"quizzes": quiz_serial.data})
+        return render(request, 'quizzes.html', {'paginator':paginator.data, 'quiz_paginated':quiz_paginated }, status=HTTP_200_OK)
+    
 
     def post(self, request):
         # env = environ.Env()
@@ -281,8 +274,6 @@ class QuizViews(APIView):
         return Response({"success"}, status=HTTP_200_OK)
 
     # --------- other funtions ---------
-
-
 Opciones = {
     "Verdadero": "Verdadero",
     "True": "Verdadero",
@@ -382,13 +373,13 @@ def mapping(op):
         OptionError = Exception(f"No ha escrito bien las opciones")
         return OptionError
 
-
+# ------ QUESTION VIEWS -------
 # ModeliViewSet has already implemented to use create, retrieve, partial_update, update, destroy and list methods.
 class QuestionView(ModelViewSet):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer()
 
-
+# ------ SHOW ANSWERS ----------------
 class ShowAnswersByRespondant(APIView):
 
     def get(self, request):
@@ -407,7 +398,11 @@ class ShowAnswersByRespondant(APIView):
 
             return Response({"success", serializer.data}, status=HTTP_200_OK)
         return Response({"error": answers}, status=HTTP_404_NOT_FOUND)
-
+   
+class ShowAnswers():
+    def get(self, request):
+        respuestas = Respuesta.objects.all()
+        return render(request, 'answers.html', respuestas)
 
 class ShowResultsByQuestion(APIView):
 
@@ -419,3 +414,11 @@ class ShowResultsByQuestion(APIView):
     #     serializer = RespuestaSerializer(answers, many=True)
     #     return Response({'success'})
     # return Response({'error': answers}, status=HTTP_404_NOT_FOUND)
+
+
+# ----------------- USERS -----------------
+class ShowUsers():
+
+    def get(self, request):
+        respondant = Respondant.objects.all()
+        return render(request, 'users.html', respondant)
