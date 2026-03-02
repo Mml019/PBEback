@@ -88,6 +88,8 @@ TEMPLATES = [
     },
 ]
 
+LOGIN_URL=env('ADMIN_HOST')+env('LOGIN_URL')
+
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Django API REST Rest Framework
