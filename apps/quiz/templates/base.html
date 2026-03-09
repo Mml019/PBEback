@@ -8,6 +8,8 @@
         integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <title>{% block title %}Título{% endblock %}</title>
     <link href="{% static 'styles/base.css'%}" rel="stylesheet"></link>
+    {% block styles %}{% endblock styles %}
+    {% block scriptshead %}{% endblock scriptshead %}
 </head>
 <body>    
     <div id="header">
@@ -21,30 +23,36 @@
                 </button>
                 <div class="collapse navbar-collapse" id="navbarToggler">
                     {% if user.is_authenticated%}
+                    
+                    {% with request.resolver_match.url_name as url_name %}
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'quizzes'%}">Formularios</a>
+                            <a class="nav-link {% if url_name == 'quizzes' %}active{% endif %}" href="{% url 'quizzes'%}">Formularios</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'users'%}" >Encuestados</a>
+                            <a id="link_users" class="nav-link {% if url_name == 'users' %}active{% endif %}"  href="{% url 'users'%}" >Encuestados</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'answers'%}">Respuestas</a>
+                            <a class="nav-link {% if url_name == 'answers'%}active{% endif %}" href="{% url 'answers'%}">Respuestas</a>
                         </li>
                     </ul>
+                    {% endwith %}
                     <div class='d-flex justify-content-end'>
                        <span>{{user.username}}|admin</span> 
                     </div>
+                    <button class='btn btn-secondary' onclick="{% static 'logout'%}">Cerrar sesión</button>
                     {% endif%}
                 </div>
             </div>
         </nav>
     </div>
     <div id="content" class="container-fluid mt-4">
-        {% block content %}
-        
-        {% endblock %}
+        {% block content %}{% endblock %}
     </div>
+    <div id="footer" class=" row container-fluid fixed-bottom">
+        {% block footer %}{% endblock %}
+    </div>
+    <script src="{% static "js/base.js" %}"></script>
 </body>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous">

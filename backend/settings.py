@@ -88,7 +88,8 @@ TEMPLATES = [
     },
 ]
 
-LOGIN_URL=env('ADMIN_HOST')+env('LOGIN_URL')
+LOGIN_URL="http://127.0.0.1:8000/uib/PEBquiz-admin/"+"login/"
+LOGIN_REDIRECT_URL=env('ADMIN_HOST_DEV')+env('LOGIN_URL')
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 

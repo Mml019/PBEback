@@ -1,9 +1,10 @@
-from rest_framework import serializers
-from rest_framework.serializers import ValidationError
-from apps.quiz.models import *
-
 import re
 from datetime import datetime, time
+
+from apps.quiz.models import *
+from rest_framework import serializers
+from rest_framework.serializers import ValidationError
+
 
 # The intermediary classes don't have a serializer
 class DimensionSerializer(serializers.ModelSerializer):
@@ -20,6 +21,7 @@ class DimensionSerializer(serializers.ModelSerializer):
         if value < 1 or value > 5:
             return ValidationError(" Debe seleccionar un valor del 1 al 5 ")
         return value
+
 
 class InterestAreaSerializer(serializers.ModelSerializer):
     idD = DimensionSerializer
@@ -43,12 +45,14 @@ class InterestAreaSerializer(serializers.ModelSerializer):
             return ValidationError("Area de interés no coincide con su dimensión")
         return value
 
+
 class CoreContentSerializer(serializers.ModelSerializer):
     int_area = InterestAreaSerializer
 
     class Meta:
         model = CoreContent
         fields = "__all__"
+
 
 class OptionSerializer(serializers.ModelSerializer):
     # question = QuestionSerializer
@@ -57,6 +61,7 @@ class OptionSerializer(serializers.ModelSerializer):
         model = Option
         fields = ["idO", "option"]  # without list of question
 
+
 class OptionQuestionSerializer(serializers.ModelSerializer):
     idO = OptionSerializer
 
@@ -64,6 +69,7 @@ class OptionQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
         fields = ["idP", "idO", "motive", "pk"]
+
 
 class QuestionSerializer(serializers.ModelSerializer):
     idD = DimensionSerializer()
@@ -87,10 +93,15 @@ class QuestionSerializer(serializers.ModelSerializer):
             "idO",
         ]
 
+
 class QuizSerializerBasic(serializers.ModelSerializer):
+    fechaC = serializers.DateTimeField(format="%d-%m-%Y %H:%M:%S")
+    fechaA = serializers.DateTimeField(format="%d-%m-%Y %H:%M:%S")
+
     class Meta:
         model = Quiz
-        fields = ["idQ", "file", "fechaC", "fechaA", "question"]
+        fields = ["idQ", "file", "fechaC", "fechaA"]
+
 
 # This serializer displays all the questions that belong to a quiz
 class QuizSerializer(serializers.ModelSerializer):
@@ -100,6 +111,7 @@ class QuizSerializer(serializers.ModelSerializer):
         model = Quiz
         fields = ["idQ", "file", "fechaC", "fechaA", "question"]
 
+
 # User Serializer
 class MyUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -107,32 +119,36 @@ class MyUserSerializer(serializers.ModelSerializer):
         fields = "__all__"
         extra_kwargs = {"password": {"write_only": True}}
 
+
 class ProfesionalAreaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfesionalArea
-        fields= "__all__"
+        fields = "__all__"
+
 
 class SatisfationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Satisfation
-        fields= "__all__"
+        fields = "__all__"
 
     def validate_value(self, value):
         if value < 0 or value > 5:
             return ValidationError("La puntuación debe ser entre 0 y 5")
         return value
 
+
 class YearAcademicLevelSerializer(serializers.ModelSerializer):
     class Meta:
         model = YearAcademicLevel
-        fields= "__all__"
+        fields = "__all__"
+
 
 class AcademicLevelSerializer(serializers.ModelSerializer):
     year = YearAcademicLevelSerializer
 
     class Meta:
         model = AcademicLevel
-        fields= "__all__"
+        fields = "__all__"
 
         def validate_year(self, value):
             # if attrs['tittle'] not in TITTLE_CHOICES:
@@ -141,6 +157,7 @@ class AcademicLevelSerializer(serializers.ModelSerializer):
                 return ValidationError(
                     f" No puede ser un año superior al actual o anterior a {datetime.now.year-70}"
                 )
+
 
 class RespondantSerializer(serializers.ModelSerializer):
     profarea = ProfesionalAreaSerializer
@@ -178,21 +195,14 @@ class RespondantSerializer(serializers.ModelSerializer):
 
         return super().validate(attrs)
 
+
 class RespuestaSerializer(serializers.ModelSerializer):
 
     option = serializers.PrimaryKeyRelatedField(
-        queryset=Option.objects.all(),
-        source="answer",
-        write_only=True
+        queryset=Option.objects.all(), source="answer", write_only=True
     )
-    question = serializers.PrimaryKeyRelatedField(
-        queryset=Question.objects.all(),
-        write_only=True
-    )
-    user = serializers.UUIDField(
-        source="respondant",
-        write_only=True
-    )
+    question = serializers.PrimaryKeyRelatedField(queryset=Question.objects.all(), write_only=True)
+    user = serializers.UUIDField(source="respondant", write_only=True)
     time = serializers.IntegerField(write_only=True)
 
     def validate_time(self, value):
@@ -202,21 +212,20 @@ class RespuestaSerializer(serializers.ModelSerializer):
         hours = seconds // 3600
         minutes = (seconds % 3600) // 60
         seconds = seconds % 60
-        
-        # Create object 'time' 
+
+        # Create object 'time'
         value = time(hour=hours, minute=minutes, second=seconds)
-        return value        
+        return value
 
     class Meta:
         model = Respuesta
-        fields = ['option', 'time', 'user', 'question', 'is_correct']# is_correct, pk]
+        fields = ["option", "time", "user", "question", "is_correct"]  # is_correct, pk]
         read_only_fields = ["is_correct"]
 
     # Validate if answer exists before or not by this user
     def validate(self, attrs):
         if Respuesta.objects.filter(
-            respondant_id=attrs["respondant"],
-            question=attrs["question"]
+            respondant_id=attrs["respondant"], question=attrs["question"]
         ).exists():
             raise serializers.ValidationError(
                 f"El usuario {attrs["respondant"]} ya respondió esa pregunta {attrs["question"]}."
@@ -224,31 +233,34 @@ class RespuestaSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        user_uuid = validated_data['respondant']
+        user_uuid = validated_data["respondant"]
         respondant = Respondant.objects.get(respondant_id=user_uuid)
-        validated_data['respondant'] = respondant
+        validated_data["respondant"] = respondant
 
-        validated_data['is_correct'] = OptionQuestion.solutions.filter(
-        idO=validated_data['answer'],
-        idP=validated_data['question']
+        validated_data["is_correct"] = OptionQuestion.solutions.filter(
+            idO=validated_data["answer"], idP=validated_data["question"]
         ).exists()
-        
+
         return super().create(validated_data)
+
 
 class EnviromentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enviroment
-        fields= ["idEnv", "enviroment"]
+        fields = ["idEnv", "enviroment"]
+
 
 class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
-        fields= ["idAct", "activity"]
+        fields = ["idAct", "activity"]
+
 
 class SectorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sector
-        fields= ["idSec", "sector"]
+        fields = ["idSec", "sector"]
+
 
 class ProfesionalSerializer(serializers.ModelSerializer):
     profesional = RespondantSerializer
@@ -258,7 +270,7 @@ class ProfesionalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profesional
-        fields= [
+        fields = [
             "profesional",
             "supervisor",
             "dedicationW",
@@ -268,9 +280,10 @@ class ProfesionalSerializer(serializers.ModelSerializer):
             "enviroments",
         ]
 
+
 class DedicationSerializer(serializers.ModelSerializer):
     # profesional = ProfesionalSerializer
     # activity = ActivitySerializer
     class Meta:
         model = Sector
-        fields= ["profesional", "activity", "percentatge", "pk"]
+        fields = ["profesional", "activity", "percentatge", "pk"]

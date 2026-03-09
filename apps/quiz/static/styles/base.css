@@ -20,14 +20,28 @@ body {
 #content {
     display: flex;
     flex-direction: column;
+    height: 100%;
+    width: 100%;
 }
+
 
 /* Navbar */
 .navbar-nav{
     display: flex;
     flex-direction: row;
+    flex-wrap: nowrap;
     justify-content: space-around;
     justify-items:center;
     align-items: center;
     align-content: space-around;
+}
+
+.nav-link:hover{
+    opacity: 50%;
+    border-color: #e0e0e0;
+
+}
+
+.nav-link:active{
+    font-weight: bold;
 }

@@ -70,7 +70,7 @@ class LoginView(View):
                 return  render(request, "login.html", {'form': form}, status=HTTP_404_NOT_FOUND)
         return  render(request, "login.html", {'form': form}, status=HTTP_200_OK)
         
-class LogoutView(APIView):
+class LogoutView(View):
     # logout
     def post(self, request):
         logout(request)
@@ -118,17 +118,23 @@ class QuizViews(APIView):
     """ To show all quizzes paginated by 20 size to the admin"""
     def get(self, request):
         if Quiz.objects.exists() is False:
-            return Response({"error": "There are any quizzes"}, status=HTTP_204_NO_CONTENT)
+            return render(request, 'quizzes.html', {'error': 'No hay cuestionarios'}, status=HTTP_404_NOT_FOUND)
 
         quizzes = Quiz.objects.all()
         
         paginator = SmallPageNumberPagination()
         quiz_paginated = paginator.paginate_queryset(quizzes, request)
         
-        quiz_serial = QuizSerializer(quiz_paginated, many=True)
+        # serialize only quizzes not their questions
+        quiz_serial = QuizSerializerBasic(quiz_paginated, many=True)
         # paginate the response
-        paginator= paginator.get_paginated_response({"quizzes": quiz_serial.data})
-        return render(request, 'quizzes.html', {'paginator':paginator.data, 'quiz_paginated':quiz_paginated }, status=HTTP_200_OK)
+        paginator2= paginator.get_paginated_response({"quizzes": quiz_serial.data})
+        
+        # total_pages = round(paginator2.data["count"] / paginator.get_page_size(request=request))
+        # print(paginator2.data["count"], paginator.get_page_size(request=request))
+        # paginator2["total_pages"]=range(1, total_pages + 1)
+        # return paginator2
+        return render(request, 'quizzes.html', {'paginator':paginator2.data }, status=HTTP_200_OK)
     
 
     def post(self, request):
@@ -291,8 +297,6 @@ Opciones = {
     Ensures right decode to CSV if is not a UTF-8 CSV, because accents can't be resolved corrected.
     Returns a new csv file in memory to be decoded into a new utf-8 file.
 """
-
-
 def ensureDecode(file):
     contenido_str = file.read().decode("latin-1")
     # To read text and not bytes in memory we need io library
