@@ -4,23 +4,27 @@
 {% block styles %}
 <link rel="stylesheet" href="{% static "styles/quizzes.css" %}" />
 {% endblock styles %}
-{% block scriptshead %}<script src={% static "js/quizzes.js" %}></script> {%endblock scriptshead %}
+{% block scriptshead %} {%endblock scriptshead %}
 {% block content%}
+<h2 class="part">Mis cuestionarios:</h2>
 <div id="quizzes_list" class="row">
-  <h2>Mis cuestionarios:</h2>
-  {{paginator.results.data.quizzes}}
   {% if paginator%}
       <ul>
         {% for quiz in paginator.results.data.quizzes%}
         <li id="quiz_{{quiz.idQ}}">
             <div id="quiz" class="vstack g-2 justify-content-center">
-                <img id="quiz_img_{{forloop.counter}}" data-file="{{quiz.file}}" class="img-fluid"
-                width="50"/>
-                {% comment %} <link id="quiz_name" href="{% url "quiz/detailquiz.html" %}">{{quiz.file}}</link> {% endcomment %}
-                <span href=>{{quiz.file}}</span>
-                {% comment %} <a href="{% url 'detailquiz.html' id=quiz.idQ %}">{{quiz.file}}</a> {% endcomment %}
+              <div id="quiz_title">
+                <a href="{% url 'detailquiz' idQ=quiz.idQ %}" class="d-inline-flex justify-content-center">
+                  {{quiz.file}}
+                </a>
+                <a href="{% url 'detailquiz' idQ=quiz.idQ %}" class="d-inline-flex justify-content-center">
+                <img id="quiz_img_{{forloop.counter}}" data-file="{{quiz.file}}" class="img-fluid" width="50" /> 
+                </a>
+              </div>
+              <div id="quiz_info" class="d-flex justify-content-center mb-3 mt-2">
                 <span>Fecha de creación: {{quiz.fechaC}}</span>
                 <span>Fecha de actualización: {{ quiz.fechaA}}</span>
+              </div>
             </div>
         </li>
         {%endfor%}
@@ -48,9 +52,6 @@
       {% for page in paginator.total_range %}
       <li class="page-item"><a class="page-link {% if page == paginator.current_page %}active{% endif %}" href="?p={{page}}">{{page}}</a></li>
       {% endfor %}
-      {% comment %} <li class="page-item"><a class="page-link" href="#">1</a></li>
-      <li class="page-item"><a class="page-link" href="#">2</a></li>
-      <li class="page-item"><a class="page-link" href="#">3</a></li> {% endcomment %}
       {% if paginator.next_page %}
       <li class="page-item">
         {% if paginator.next %}
@@ -63,4 +64,9 @@
     </ul>
   </nav>
 </div>
+<div class="row d-flex flex-row-reverse">
+  <button id="import-but" type="button" class="btn btn-primary" onclick="">Importar cuestionario</button>
+</div>
+
+<script src={% static "js/quizzes.js" %}></script>
 {% endblock%}

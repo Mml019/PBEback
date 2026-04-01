@@ -10,7 +10,9 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('quizzes/', QuizViews.as_view(), name='quizzes'),
-    path("answers/", ShowAnswers, name="answers"),
-    path("users/", ShowUsers, name="users"),
-    path('answerByRespondant/', ShowAnswersByRespondant.as_view(), name='answers_res' )
+    path("answers/", ShowAnswers.as_view(), name="answers"),
+    path("users/", ShowUsers.as_view(), name="users"),
+    path("quiz/<int:idQ>/", QuizViews.as_view(), name="detailquiz"),
+    # path('answerByRespondant/', ShowAnswersByRespondant.as_view(), name='answers_res' )
+
 ]

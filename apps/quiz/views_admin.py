@@ -22,7 +22,7 @@ from rest_framework.status import *
 from rest_framework.views import View, APIView
 from rest_framework.viewsets import ModelViewSet
 
-from .pagination import SmallPageNumberPagination
+from .pagination import SmallPageNumberPagination, MediumQuestionNumberPagination, LargeQuestionNumberPagination
 
 # -------- USER FUNTIONS -----------
 class LoginView(View):
@@ -403,26 +403,50 @@ class ShowAnswersByRespondant(APIView):
             return Response({"success", serializer.data}, status=HTTP_200_OK)
         return Response({"error": answers}, status=HTTP_404_NOT_FOUND)
    
-class ShowAnswers():
+class ShowAnswers(View):
     def get(self, request):
         respuestas = Respuesta.objects.all()
+        if respuestas is not None:
+            res_serial = RespuestaSerializer(respuestas, many=True)
+            print(res_serial.data)
+            print("answers")
+            return render(request, 'answers.html', res_serial.data)
+            return Response({'success': res_serial.data}, status=HTTP_200_OK)
+        return Response({'error': respuestas}, status=HTTP_404_NOT_FOUND)
+
         return render(request, 'answers.html', respuestas)
 
-class ShowResultsByQuestion(APIView):
-
-    def get(self, request):
-        pass
-
-    # answers = Respuesta.objects.
-    # if answers.exists():
-    #     serializer = RespuestaSerializer(answers, many=True)
-    #     return Response({'success'})
-    # return Response({'error': answers}, status=HTTP_404_NOT_FOUND)
-
+# Exportar resultados en excel
 
 # ----------------- USERS -----------------
-class ShowUsers():
+class ShowUsers(APIView):
 
     def get(self, request):
-        respondant = Respondant.objects.all()
-        return render(request, 'users.html', respondant)
+        if Respondant.objects.all().exists():
+            respondant = Respondant.objects.all()
+            # res_ser = RespondantSerializer(respondant)
+            
+            paginator =LargeQuestionNumberPagination()
+            res_paginated = paginator.paginate_queryset(respondant, request=request)
+            res_serial = RespondantSerializer(res_paginated, many=True)
+            try: 
+                profesional = Profesional.objects.get(profesional=respondant)
+            except Profesional.DoesNotExist:
+                return paginator.get_paginated_response(res_serial.data)
+                # return render(request, 'users.html', res_serial.data)
+
+            prof_paginated = paginator.paginate_queryset(profesional, request)
+            profesional_serial = ProfesionalSerializer(prof_paginated, many=True)
+            return paginator.get_paginated_response(profesional_serial.data)
+            # return render(request, 'users.html', profesional_serial.data)
+        else:
+            return render(request, 'users.html', res_serial.data )
+
+# Exportar usuarios en excel
+def export_users():
+    respondant = Respondant.objects.all()
+    wb = xl.Workbook()
+    ws = wb.active
+    ws.title = "Users"
+
+    ws.append(['ID', 'Edad','Sexo', 'Nacionalidad', 'Ciudad', 'Provincia', 'Nivel PBE','Conocimiento PBE', 'Formación PBE', '' ])
