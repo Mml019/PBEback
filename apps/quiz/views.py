@@ -104,11 +104,7 @@ class RespondantViews(CreateAPIView):
         "interest_sas",
         "satisfation",
         "activity",
-        "activity_val_0",
-        "activity_val_1",
-        "activity_val_2",
-        "activity_val_3",
-        "activity_val_4",
+        "activity_val"
         "enviroment",
         "sector",
         "dedicationW",
@@ -137,13 +133,8 @@ class RespondantViews(CreateAPIView):
                     "Me he sentido interesado/a y motivado/a": int(data["interest_sas"]),
                 }
 
-                activities_dic = {
-                    "Asistencial": float(data["activity_val_0"]),
-                    "Investigación": float(data["activity_val_1"]),
-                    "Docencia": float(data["activity_val_2"]),
-                    "Administración": float(data["activity_val_3"]),
-                    "Otra": float(data["activity_val_4"]),
-                }
+                # Generate dictionary from two array
+                # activities_dic = {dict(zip(data["activity"], data["activity_val"]))}
 
                 prof_list = []
                 for p in data["profarea"]:
@@ -186,10 +177,12 @@ class RespondantViews(CreateAPIView):
                         sec_list.append(sector)
 
                 act_list = []
-                print(f'dataactivty {data["activity"]}')
                 for a in data["activity"]:
                     activity, _ = Activity.objects.get_or_create(activity=a)
                     act_list.append(activity)
+
+                # remove empty values from activity val array
+                # data["activity_val"] = [p for p in data["activity_val"] if p not in (None,0)]
 
                 # academic_level = AcademicLevel(academic_lvl=None, description=None, year=YearAcademicLevel(year=2025))
                 academic_level = None
@@ -263,16 +256,13 @@ class RespondantViews(CreateAPIView):
                     profesional.enviroments.set(env_list)
 
                     # Traverse activity array but is not equal activity_val index, map
-                    print(act_list)
                     for i, a in enumerate(act_list):
-                        if data[f"activity_val_{i}"] is not None:
-                            dedication, _ = Dedication.objects.get_or_create(
-                                profesional=profesional,
-                                activity=a,
-                                # percentatge=data[f"activity_val_{i}"],
-                                percentatge=activities_dic[a.activity],
-                            )
-                        print(f"{profesional}, {a}, {data[f"activity_val_{i}"]}")
+                        dedication, _ = Dedication.objects.get_or_create(
+                            profesional=profesional,
+                            activity=a,
+                            # percentatge=data[f"activity_val[{i}]"]
+                            percentatge=activities_dic[a.activity],
+                        )
                         print(f"2 {profesional}, act {activity} a:{a} i:{i} dta:{data[f"activity_val_{i}"]}")
                         # dedication.percentatge = float(data[f"activity_val_{index}"])
                         # dedication.save
