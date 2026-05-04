@@ -8,9 +8,9 @@
 {% block content%}
 <h2 class="part">Mis cuestionarios:</h2>
 <div id="quizzes_list" class="row">
-  {% if paginator%}
+  {% if paginator %}
       <ul>
-        {% for quiz in paginator.results.data.quizzes%}
+        {% for quiz in  paginator.results.data%} 
         <li id="quiz_{{quiz.idQ}}">
             <div id="quiz" class="vstack g-2 justify-content-center">
               <div id="quiz_title">
@@ -64,9 +64,40 @@
     </ul>
   </nav>
 </div>
-<div class="row d-flex flex-row-reverse">
-  <button id="import-but" type="button" class="btn btn-primary" onclick="">Importar cuestionario</button>
+
+<button type="button" id="import-but" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalImport">Importar cuestionario</button>
+
+<div class="modal fade" data-bs-backdrop="static" data-bs-keyboard="false" id="modalImport" tabindex="-1" role="dialog" aria-labelledby="modalImportLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <form method="post" action="{% url 'quizzes' %}" enctype="multipart/form-data">
+      {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalImportLabel">Importar cuestionario</h5>
+          <button type="button" class="close" data-bs-dismiss="modal" aria-label="Cerrar">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          {% comment %} <label class="form-label">Selecciona un archivo (.csv o .xlsx)</label> {% endcomment %}
+          <input class="form-control" type="file" name="file" accept=".csv, .xlsx">        
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button type="submit" class="btn btn-primary">Importar</button>
+        </div>
+      </form>  
+      </div>
+  </div>
 </div>
 
+{% comment %} <form method="post" action="{% url 'quizzes' %}" enctype="multipart/form-data">
+  {% csrf_token %}
+  <input type="file" name="file" accept=".csv, .xlsx">
+  <button id="import-but" type="submit" class="btn btn-primary">Importar cuestionario</button>
+</form> {% endcomment %}
+{% comment %} <div class="row d-flex flex-row-reverse">
+   <button id="import-but" type="button" class="btn btn-primary">Importar cuestionario</button>
+</div> {% endcomment %}
 <script src={% static "js/quizzes.js" %}></script>
 {% endblock%}

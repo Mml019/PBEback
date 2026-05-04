@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock title %}
+{% block content %}
+<h2>Usuarios</h2>
+<div class="d inline-flex">
+
+</div>
+<div id="users" class="table-responsive">
+    {% comment %} {% if  %} {% endcomment %}
+    <span>Ningún participante ha respondido aún</span>
+    {% comment %} {% else %} {% endcomment %}
+    <table class="table table-striped">
+        <thead>
+            <th>ID</th>
+            <th>Usuario</th>
+            <th>Edad</th>
+            <th>Sexo</th>
+            <th>Nacionalidad</th>
+            <th>Ciudad</th>
+            <th>Provincia</th>
+            <th>Perfil</th>
+            <th>Nivel Académico</th>
+            <th>Detalles</th>
+            <th>Año del título</th>
+            <th>Área Profesional</th>
+            <th>Especialidad</th>
+            <th>Nivel de PBE</th>
+            <th>Conocimiento en PBE</th>
+            <th>Formación en PBE</th>
+            <th>Satisfacción laboral/académica</th>
+            <th>Alegre</th>
+            <th>Tranquilo</th>
+            <th>Despejado</th>
+            <th>Activo</th>
+            <th>Fresco</th>
+            <th>Cosas interesantes</th>
+            {% if profesional %}
+            <th>Supervisor</th>
+            <th>Años en activo</th>
+            <th>Horas semanales</th>
+            <th>Entornos</th>
+            <th>Sectores</th>
+            <th>Actividad asistencial</th>
+            <th>Investigación</th>
+            <th>Docencia</th>
+            <th>Administración</th>
+            <th>Otra</th>
+            {% endif %}
+            <th>Cuestionarios</th>
+        </thead>
+        <tbody>
+            {% if results.data %}
+            <td>{{users.respondant.id}}</td> <!--ID-->
+            <td>{{users.respondant.username}}</td>
+            <td>{{users.age}}</td>
+            <td>{{users.sex}}</td>
+            <td>{{users.nationality}}</td>
+            <td>{{users.city}}</td>
+            <td>{{users.region}}</td>
+            <td>{{respondant.profesional}}</td>
+            <td>{{users.academic_level.academic_lvl}}</td>
+            <td>{{users.academic_level.year}}</td>
+            <td>{{users.profarea|join:", " }}</td>
+            <td>{{users.speciality}}</td>
+            <td>{{users.level_PBE}}</td>
+            <td>{{users.PBE_knownledge}}</td>
+            <td>{{users.PBE_training}}</td>
+            <td>{{users.grade}}</td>
+            <td>{{users.satisfation[0].happy_sas}}</td>
+            <td>{{users.satisfation[1].calm_sas}}</td>
+            <td>{{users.satisfation[2].active_sas}}</td>
+            <td>{{users.satisfation[3].fresh_sas}}</td>
+            <td>{{users.satisfation[4].interest_sas}}</td>
+            <td>{{respondant.profesional.supervisor}}</td>
+            <td>{{respondant.profesional.dedicationW}}</td>
+            <td>{{respondant.profesional.years}}</td>
+             <td>{{respondant.profesional.sectors|join:", "}}</td>
+            <td>{{respondant.profesional.enviroments|join:", "}}</td>
+            <td>{{respondant.profesional.activity[0]}}</td>
+            <td>{{respondant.profesional.activity[1]}}</td>
+            <td>{{respondant.profesional.activity[2]}}</td>
+            <td>{{respondant.profesional.activity[3]}}</td>
+            <td>{{respondant.profesional.activity[4]}}</td>
+            <td>{{users.quizzes}}</td>
+            {% else %}
+            <span>Ningún participante ha respondido aún</span>
+            {% endif%}
+        </tbody>
+    </table>  
+    {% comment %} {% endif %} {% endcomment %}
+</div>
+<div>
+    <button type="button" class="btn btn-primary" onclick="{url users_donwload}">Exportar usuarios</button>
+</div>
+{% endblock content %}
