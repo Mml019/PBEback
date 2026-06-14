@@ -1,0 +1,11 @@
+body{
+    font-size: medium;
+}
+
+tr td{
+    font-size: medium;
+    height: min-content;
+    justify-content: center;
+    text-align: center;
+    width: min-content;
+}
