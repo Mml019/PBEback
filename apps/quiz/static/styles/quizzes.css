@@ -33,7 +33,16 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: center;
 }
+
+
+/* Buttons style */
+#delete-but{
+    width: min-content;
+    align-self: center;
+}
+
 
 #import-but{
     width: fit-content;

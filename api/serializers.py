@@ -160,10 +160,10 @@ class AcademicLevelSerializer(serializers.ModelSerializer):
 
 
 class RespondantSerializer(serializers.ModelSerializer):
-    profarea = ProfesionalAreaSerializer
-    question = QuestionSerializer
-    satisfation = SatisfationSerializer
-    academic_level = AcademicLevelSerializer
+    profarea = ProfesionalAreaSerializer(many=True)
+    # question = QuestionSerializer(many=True)
+    satisfation = SatisfationSerializer(many=True)
+    quizzes = serializers.SerializerMethodField()
 
     class Meta:
         model = Respondant
@@ -179,10 +179,17 @@ class RespondantSerializer(serializers.ModelSerializer):
             "PBE_training",
             "academic_level",
             "speciality",
-            "question",
+            "grade",
+            # "question",
             "profarea",
             "satisfation",
+            "quizzes"
         ]
+
+    def get_quizzes(self, obj):
+        # quizzes = obj.question.values_list("quiz", flat=True).distinct()
+        quizzes = obj.question.values_list("question_in_each_quiz", flat=True).distinct()
+        return list(quizzes)
 
     def validate(self, attrs):
         # TITTLE_CHOICES = ['Grado', 'Máster en investigación', 'Máster oficial', 'Master no oficial en investigación', 'Máster no oficial, profesionalizante', 'Doctorado']
@@ -191,13 +198,13 @@ class RespondantSerializer(serializers.ModelSerializer):
         if attrs["level_PBE"] < 1 or attrs["level_PBE"] > 5:
             return ValidationError("El nivel de conocimiento en PBE solo está entre 1 a 5")
         if attrs["PBE_knownledge"] != True or attrs["PBE_knownledge"] != False:
-            return ValidationError("Debe seleccionar si tiene conocimientos previos en PBE")
+            raise ValidationError("Debe seleccionar si tiene conocimientos previos en PBE")
 
         return super().validate(attrs)
 
 
 class RespuestaSerializer(serializers.ModelSerializer):
-
+    # quiz = serializers.SerializerMethodField()
     option = serializers.PrimaryKeyRelatedField(
         queryset=Option.objects.all(), source="answer", write_only=True
     )
@@ -228,7 +235,7 @@ class RespuestaSerializer(serializers.ModelSerializer):
             respondant_id=attrs["respondant"], question=attrs["question"]
         ).exists():
             raise serializers.ValidationError(
-                f"El usuario {attrs["respondant"]} ya respondió esa pregunta {attrs["question"]}."
+                f"El usuario {attrs['respondant']} ya respondió esa pregunta {attrs['question']}."
             )
         return attrs
 
@@ -243,30 +250,38 @@ class RespuestaSerializer(serializers.ModelSerializer):
 
         return super().create(validated_data)
 
+    # this funtion returns quizzes that got an aswer    
+    # def get_quiz(self, obj):
+        
+    #     # in each quiz is my related_name, intermedy class from appearance quiz
+    #     quizzes = obj.question.question_in_each_quiz.all()
+    #     print(quizzes)
+        
+    #     return [q.idQ for q in quizzes]
 
 class EnviromentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enviroment
-        fields = ["idEnv", "enviroment"]
+        fields = ["enviroment"] # "idEnv"
 
 
 class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
-        fields = ["idAct", "activity"]
+        fields = ["activity", "idAct",]
 
 
 class SectorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sector
-        fields = ["idSec", "sector"]
+        fields = ["sector"] #"idSec",
 
 
 class ProfesionalSerializer(serializers.ModelSerializer):
-    profesional = RespondantSerializer
-    activities = ActivitySerializer
-    sectors = SectorSerializer
-    enviroments = EnviromentSerializer
+    profesional = RespondantSerializer(many=True)
+    activities = ActivitySerializer(many=True)
+    sectors = SectorSerializer(many=True)
+    enviroments = EnviromentSerializer(many=True)
 
     class Meta:
         model = Profesional
@@ -282,8 +297,8 @@ class ProfesionalSerializer(serializers.ModelSerializer):
 
 
 class DedicationSerializer(serializers.ModelSerializer):
-    # profesional = ProfesionalSerializer
-    # activity = ActivitySerializer
+    profesional = ProfesionalSerializer(many=True)
+    activity = ActivitySerializer(many=True)
     class Meta:
         model = Sector
         fields = ["profesional", "activity", "percentatge", "pk"]

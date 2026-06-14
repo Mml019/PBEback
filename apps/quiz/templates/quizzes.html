@@ -8,13 +8,13 @@
 {% block content%}
 <h2 class="part">Mis cuestionarios:</h2>
 <div id="quizzes_list" class="row">
-  {% if paginator %}
       <ul>
-        {% for quiz in  paginator.results.data%} 
+      {% for quiz in  page_obj%} 
         <li id="quiz_{{quiz.idQ}}">
-            <div id="quiz" class="vstack g-2 justify-content-center">
-              <div id="quiz_title">
-                <a href="{% url 'detailquiz' idQ=quiz.idQ %}" class="d-inline-flex justify-content-center">
+            <div id="quiz" class="vstack mt-2 justify-content-center">
+              <div id="quiz_title" class="d-inline-flex align-self-center">
+                <span >Código: {{quiz.idQ}}</span>
+                <a href="{% url 'detailquiz' idQ=quiz.idQ %}">
                   {{quiz.file}}
                 </a>
                 <a href="{% url 'detailquiz' idQ=quiz.idQ %}" class="d-inline-flex justify-content-center">
@@ -24,53 +24,59 @@
               <div id="quiz_info" class="d-flex justify-content-center mb-3 mt-2">
                 <span>Fecha de creación: {{quiz.fechaC}}</span>
                 <span>Fecha de actualización: {{ quiz.fechaA}}</span>
+                <div id="quiz_actions" class="d-inline-flex justify-content-around offset-x">
+                  <button type="button" id="delete-but" class="btn btn-danger delete-button"
+                    data-bs-toggle="modal" data-bs-target="#deleteModal" 
+                    data-id="{{quiz_idQ}}" data-file="{{quiz.file}}" 
+                    data-url="{% url 'delete' idQ=quiz.idQ%}"
+                    >
+                    Eliminar
+                  </button>
+                </div>
               </div>
             </div>
-        </li>
-        {%endfor%}
-      </ul>
-    {% else %}
-        {% if error %}
-        <p>{{error}}</p>
-        {% else %}
-        <p>No hay cuestionarios disponibles para mostrar</p>
-        {% endif %}
-    {%endif%}
+        </li> 
+    {% empty %}
+         <p>No hay cuestionarios disponibles para mostrar</p>
+    {%endfor%}   
+  </ul>
 </div>
+
+{% if is_paginated %}
+    {% include "includes/pagination.html" %}
+{% endif %}
+{% comment "Pagination_extens" %}
 <div class="row">
   <nav aria-label="Page navigation example">
     <ul class="pagination justify-content-center">
-      {% if paginator.previous_page %}
+      {% if page_obj.has_previous %}
       <li class="page-item">
-        {% if paginator.previous %}
-        <a class="page-link" href="{{paginator.previous}}" aria-label="Previous">
+        <a class="page-link" href="?page={{page_obj.previous_page_number}}" aria-label="Previous">
         <span aria-hidden="true">&laquo;</span>
         </a>
-        {% endif %} 
       </li>
       {% endif %}
-      {% for page in paginator.total_range %}
-      <li class="page-item"><a class="page-link {% if page == paginator.current_page %}active{% endif %}" href="?p={{page}}">{{page}}</a></li>
+      {% for page in page_obj.paginator.page_range %}
+      <li class="page-item"><a class="page-link {% if page == page_obj.number %}active{% endif %}" href="?page={{page}}">{{page}}</a></li>
       {% endfor %}
-      {% if paginator.next_page %}
+      {% if page_obj.has_next%}
       <li class="page-item">
-        {% if paginator.next %}
-        <a class="page-link" href="{{paginator.next}}" aria-label="Next">
+        <a class="page-link" href="?page={{page_obj.next_page_number}}" aria-label="Next">
           <span aria-hidden="true">&raquo;</span>
         </a>
-        {% endif %}
       </li>
       {% endif %}
     </ul>
   </nav>
-</div>
+</div>  {% endcomment %}
 
+<!-- Button to show import modal selector of files -->
 <button type="button" id="import-but" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalImport">Importar cuestionario</button>
 
 <div class="modal fade" data-bs-backdrop="static" data-bs-keyboard="false" id="modalImport" tabindex="-1" role="dialog" aria-labelledby="modalImportLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form method="post" action="{% url 'quizzes' %}" enctype="multipart/form-data">
+      <form id="import-form" method="post" action="{% url 'quizzes' %}" enctype="multipart/form-data">
       {% csrf_token %}
         <div class="modal-header">
           <h5 class="modal-title" id="modalImportLabel">Importar cuestionario</h5>
@@ -80,24 +86,38 @@
         </div>
         <div class="modal-body">
           {% comment %} <label class="form-label">Selecciona un archivo (.csv o .xlsx)</label> {% endcomment %}
-          <input class="form-control" type="file" name="file" accept=".csv, .xlsx">        
+          <input class="form-control" id="file-input" type="file" name="file" accept=".csv, .xlsx" required>        
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-          <button type="submit" class="btn btn-primary">Importar</button>
+          <button id="import-but-accept" disabled type="submit" class="btn btn-primary">Importar</button>
         </div>
       </form>  
       </div>
   </div>
 </div>
 
-{% comment %} <form method="post" action="{% url 'quizzes' %}" enctype="multipart/form-data">
-  {% csrf_token %}
-  <input type="file" name="file" accept=".csv, .xlsx">
-  <button id="import-but" type="submit" class="btn btn-primary">Importar cuestionario</button>
-</form> {% endcomment %}
-{% comment %} <div class="row d-flex flex-row-reverse">
-   <button id="import-but" type="button" class="btn btn-primary">Importar cuestionario</button>
-</div> {% endcomment %}
+<!---Modal to deleteQuiz-->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="deleteModalLabel">Borrar Cuestionario {{quiz.idQ}}</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="delete-modal-form" method="POST">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p id="delete-modal-text"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-secondary">Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script src={% static "js/quizzes.js" %}></script>
 {% endblock%}

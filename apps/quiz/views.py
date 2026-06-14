@@ -13,11 +13,11 @@ from rest_framework.viewsets import ModelViewSet
 
 from .models import *
 
+
 class QuizViews(APIView):
     """Get a random Quizzes and returns them"""
 
     def get(self, request):
-
         if Quiz.objects.all().exists:
             quizzes_ids = list(Quiz.objects.all().values_list("idQ", flat=True))
             random.shuffle(quizzes_ids)
@@ -103,8 +103,9 @@ class RespondantViews(CreateAPIView):
         "happy_sas",
         "interest_sas",
         "satisfation",
-        "activity",
-        "activity_val"
+        "activities",
+        # "activity",
+        # "activity_val",
         "enviroment",
         "sector",
         "dedicationW",
@@ -132,9 +133,6 @@ class RespondantViews(CreateAPIView):
                     "Me he sentido fresco/a y renovado/a": int(data["fresh_sas"]),
                     "Me he sentido interesado/a y motivado/a": int(data["interest_sas"]),
                 }
-
-                # Generate dictionary from two array
-                # activities_dic = {dict(zip(data["activity"], data["activity_val"]))}
 
                 prof_list = []
                 for p in data["profarea"]:
@@ -177,12 +175,10 @@ class RespondantViews(CreateAPIView):
                         sec_list.append(sector)
 
                 act_list = []
-                for a in data["activity"]:
-                    activity, _ = Activity.objects.get_or_create(activity=a)
-                    act_list.append(activity)
-
-                # remove empty values from activity val array
-                # data["activity_val"] = [p for p in data["activity_val"] if p not in (None,0)]
+                for a in data["activities"]:
+                    if a["checked"] is True:
+                        activity, _ = Activity.objects.get_or_create(activity=a["activity"])
+                        act_list.append({"activity": activity, "value": a["value"]})
 
                 # academic_level = AcademicLevel(academic_lvl=None, description=None, year=YearAcademicLevel(year=2025))
                 academic_level = None
@@ -213,14 +209,6 @@ class RespondantViews(CreateAPIView):
                 myuser = MyUser.objects.create(
                     username=None, password=None, is_staff=False, is_superuser=False
                 )
-                # add group and perms to user
-                # group = Group.objects.get(name='respondant')
-                # myuser.groups.add(group)
-
-                # pbe_training =None
-                # # only if is true
-                # if data["PBE_training"] == "Sí":
-                #     pbe_training = data["PBE_training"]
 
                 respondant = Respondant(
                     respondant=myuser,
@@ -255,17 +243,10 @@ class RespondantViews(CreateAPIView):
                     profesional.sectors.set(sec_list)
                     profesional.enviroments.set(env_list)
 
-                    # Traverse activity array but is not equal activity_val index, map
-                    for i, a in enumerate(act_list):
+                    for a in act_list:
                         dedication, _ = Dedication.objects.get_or_create(
-                            profesional=profesional,
-                            activity=a,
-                            # percentatge=data[f"activity_val[{i}]"]
-                            percentatge=activities_dic[a.activity],
+                            profesional=profesional, activity=a['activity'], percentatge=float(a['value'])
                         )
-                        print(f"2 {profesional}, act {activity} a:{a} i:{i} dta:{data[f"activity_val_{i}"]}")
-                        # dedication.percentatge = float(data[f"activity_val_{index}"])
-                        # dedication.save
 
                 # return user serializable
                 respondant_serial = RespondantSerializer(respondant)

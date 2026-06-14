@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title%}Quiz{%endblock%}
+{% block styles %}
+<link rel="stylesheet" href="{% static 'styles/detailquiz.css' %}" />
+{% endblock%}
+{% block content%} 
+<header id='quizHeader' class="d-flex row align-items-center justify-content-center">
+    {% if quiz %}
+    <div class="col-6">
+        <span class="part strong">Cuestionario {{quiz.idQ}}:</span>
+        <span>{{quiz.file}}</span>
+    </div>
+    <div class="col-6">
+         <div class='d-flex justify-content-end'>
+            <span class="mx-auto" id="quizCreatedDate"><strong>Fecha de creación:</strong>{{quiz.fechaC|date:"d/m/Y"}}</span>
+            <span id="quizUpdatedDate"><strong>Fecha de actualización:</strong>{{quiz.fechaA|date:"d/m/Y"}}</span>
+            {% if user.is_authenticated %}
+            <div class="d-flex ml-3 justify-content-center align-items-center">
+                <span>{{user.username}}|admin</span>
+                <button class='btn btn-secondary' onclick="{% url 'logout'%}">Cerrar sesión</button> 
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</header>
+<div id="quizInfo" class="row">
+<form method="GET" id="export_answers" action="{% url 'answers_by_quiz' idQ=quiz.idQ %}"> 
+    <button type="submit" class="btn btn-success">
+        Ver respuestas
+    </button>
+</form>
+<div class="table-responsive">
+  <table class="table table-sm table-striped  caption-top">
+    <caption>Lista de preguntas</caption>
+    <thead class="table-light">
+        <th>Número</th>
+        <th>Orden</th>
+        <th>Dimensión</th>
+        <th>Área de interés</th>
+        <th>Contenido Nuclear</th>
+        <th>Enunciado</th>
+        <th>Versión</th>
+        <th>Dificultad</th>
+        <th>Fecha de creación</th>
+        <th>Acciones</th>
+        <th>Total Aciertos</th>
+    </thead>
+    <tbody class="table-group-divider">
+        
+        {% for q in questions %} 
+        <tr>
+            <td>{{q.numero}}</td>
+            <td>{{q.idD.orden}}.{{q.idA.orden}}</td>
+            <td>{{q.idD.dimension}}</td>
+            <td>{{q.idA.int_area}}</td>
+            <td>{{q.idC.core_cont}}</td>
+            <td>{{q.statement}}</td>
+            <td>{{q.version}}</td>
+            <td>{{q.difficult_level}}</td>
+            <td>{{q.date|date:"d/m/Y"}}</td>
+            <td>
+                <div class="d-flex mx-auto">
+                    <button class="btn btn-sm btn-danger">Eliminar</button>
+                    <button class="btn btn-sm btn-primary">Editar</button>
+                </div>
+            </td>
+            <td>{{q.total_corrects}}</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+            <td>Ningún participante ha respondido aún</td>
+        </tr>
+    </tbody>
+  </table>
+</div>
+{% endif %}
+</div>
+
+
+<script src="{% static 'js/quizzes.js' %}"></script>
+{% endblock%}

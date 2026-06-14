@@ -57,3 +57,10 @@ body {
 .nav-link:active{
     font-weight: bold;
 }
+
+/* TABLES */
+tbody tr:hover td {
+    background-color: cadetblue;
+}
+
+/* PaGINATION*/

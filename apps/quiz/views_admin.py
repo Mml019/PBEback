@@ -1,42 +1,46 @@
-import io
 from datetime import time
 from django.shortcuts import redirect, render, get_object_or_404, get_list_or_404
 from django import forms
+from django.urls import reverse_lazy
 
 # imports to Normalize and clean data
-import openpyxl as xl
+# import openpyxl as xl
 import pandas as pd
+import io
 
+from django.db.models.functions import Concat
+from django.db.models import Q, F, Value, CharField, Count, Sum, Subquery, OuterRef
+# from django.core.paginator import Paginator
+from django.views.generic import DetailView, DeleteView, ListView, UpdateView
 from .models import OptionQuestion as oqm
 from .models import *
 from api.serializers import *
 from .forms import LoginForm
+from .utils.mixins import PaginationBlockMixin
+from .utils.utils import normalizeFile, format, Opciones, export_as_csv_or_excel
 
 from django.db import transaction
+from django.http import HttpResponse
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.generics import *
-from rest_framework.parsers import FileUploadParser, MultiPartParser
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.status import *
 from rest_framework.views import View, APIView
-from rest_framework.viewsets import ModelViewSet
-
-from .pagination import SmallPageNumberPagination, MediumQuestionNumberPagination, LargeQuestionNumberPagination
 
 # -------- USER FUNTIONS -----------
 class LoginView(View):
 
     def get(self, request):
         form = LoginForm()
-        return render(request, "login.html", {'form': form}, status=HTTP_200_OK)
-        return render(request, 'login.html',status=HTTP_200_OK)
-        
+        return render(request, "login.html", {"form": form}, status=HTTP_200_OK)
+
     # login
     def post(self, request):
         form = LoginForm(request.POST)
 
-        if form.is_valid():   # ← OBLIGATORIO
+        if form.is_valid():  # ← OBLIGATORIO
             username = form.cleaned_data["username"]
             password = form.cleaned_data["password"]
 
@@ -49,136 +53,101 @@ class LoginView(View):
             if user is not None:
                 if user.is_active:
                     login(request, user)
-                    return render(request, "quizzes.html", {'user': user}, status=HTTP_200_OK)
-                else: 
-                    message = f'This user is not active, please contact with an admin.'
+                    return render(request, "quizzes_list.html", {"user": user}, status=HTTP_200_OK)
+                else:
+                    message = f"This user is not active, please contact with an admin."
                     form.add_error(None, error=message)
 
-                    return  render(request, "login.html", {'form': form}, status=HTTP_403_FORBIDDEN)
+                    return render(request, "login.html", {"form": form}, status=HTTP_403_FORBIDDEN)
             else:
                 if MyUser.objects.filter(username=request.POST["username"]).exists():
 
                     message = f'Contraseña incorrecta para usuario {request.POST["username"]}, vuelva a intentarlo.'
                     # forms.ValidationError(message=message, code=HTTP_400_BAD_REQUEST)
-                    form.add_error(field='password', error=message)
+                    form.add_error(field="password", error=message)
 
                 else:
-                    message = 'Usuario inexistente, por favor regístrese por un admin.'
+                    message = "Usuario inexistente, por favor regístrese por un admin."
                     # forms.ValidationError(message=message, code=HTTP_404_NOT_FOUND)
-                    form.add_error(field='username', error=message)
-            
-                return  render(request, "login.html", {'form': form}, status=HTTP_404_NOT_FOUND)
-        return  render(request, "login.html", {'form': form}, status=HTTP_200_OK)
-        
+                    form.add_error(field="username", error=message)
+
+                return render(request, "login.html", {"form": form}, status=HTTP_404_NOT_FOUND)
+        return render(request, "login.html", {"form": form}, status=HTTP_200_OK)
+
+
 class LogoutView(View):
     # logout
     def post(self, request):
         logout(request)
-        return redirect('login/')
+        return redirect("login/")
 
-class Registration(CreateAPIView):
-
-    # register
-    def post(self, request):
-        # this serializer adds user with is_staff = True
-        serializer = MyUserSerializerRegistration(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-
-            # user = MyUser.objects.create_user(username=request.POST['username'],password=request.POST['password'], is_staff=True)
-            # print(user)
-            # user = MyUser.objects.get(username=request.data['username'])
-            if user is not None:
-                # add all permissions except add or change answers
-                group = create_group("interviewer")
-                user.groups.add(group)
-
-                # when user admin is created obtain the token access
-
-            else:
-                return Response({"error": "User not found " + user}, status=HTTP_404_NOT_FOUND)
-            return Response({"success": serializer.data, "user": user}, status=HTTP_201_CREATED)
-        return Response({"error": serializer.errors}, status=HTTP_400_BAD_REQUEST)
 
 # ----------- QUIZ APP----------------
-class QuizViews(APIView):
+class QuizDetailView(View):
+    """To get a quiz by id and its questions"""
+
+    def get(self, request, idQ):
+        # prefetch related allow to load in memory a query m2m
+        # Do one query to get quiz and then another to get all questions from quiz
+        try:
+            quiz = Quiz.objects.prefetch_related("question").get(idQ=idQ)
+            # count for each question total corrects
+            questions = quiz.question.annotate(
+                total_corrects=Count("respuesta", filter=Q(respuesta__is_correct=True))
+            ).order_by("idP")
+
+        except Quiz.DoesNotExist:
+            return render(request, "quiz/quizzes_list.html")
+
+        return render(request, "quiz/detailquiz.html", {"quiz": quiz, "questions": questions})
+
+class QuizListView(PaginationBlockMixin, ListView):
     parser_classes = [MultiPartParser]
+    model = Quiz
+    template_name = "quizzes.html"
+    context_object_name = "quizzes"
+    paginate_by = 3
 
-    """ To get a quiz by id"""
-    def get(self, request, id):
-        # id = request.query_params.get('quiz')
 
-        quiz = Quiz.objects.get(id)
-        if quiz is None:
-            return Response({"error": "Not found or not exits"}, status=HTTP_404_NOT_FOUND)
-        quiz_serial = QuizSerializer(quiz)  # , many=True)
-
-        return Response({"success": quiz_serial.data}, status=HTTP_200_OK)
-
-    """ To show all quizzes paginated by 20 size to the admin"""
-    def get(self, request):
-        if Quiz.objects.exists() is False:
-            return render(request, 'quizzes.html', {'error': 'No hay cuestionarios'}, status=HTTP_404_NOT_FOUND)
-
-        quizzes = Quiz.objects.all()
-        
-        paginator = SmallPageNumberPagination()
-        quiz_paginated = paginator.paginate_queryset(quizzes, request)
-        
-        # serialize only quizzes not their questions
-        quiz_serial = QuizSerializerBasic(quiz_paginated, many=True)
-        # paginate the response
-        paginator2= paginator.get_paginated_response({"quizzes": quiz_serial.data})
-        
-        # total_pages = round(paginator2.data["count"] / paginator.get_page_size(request=request))
-        # print(paginator2.data["count"], paginator.get_page_size(request=request))
-        # paginator2["total_pages"]=range(1, total_pages + 1)
-        # return paginator2
-        return render(request, 'quizzes.html', {'paginator':paginator2.data }, status=HTTP_200_OK)
-    
-
+    " Import in excel or csv a quiz with its questions"
     def post(self, request):
-        # env = environ.Env()
-
         try:
             file = request.FILES.get("file")
         except:
-            return Response({"error": "Not file in request.FILES"}, status=HTTP_400_BAD_REQUEST)
-        print(request)
-        if file is None:
-            return Response({"error": "Not file added"}, status=HTTP_400_BAD_REQUEST)
+            error={"error": "Not file in request.FILES"}
+            return render(request, 'quizzes_list', {'error':error}, status=HTTP_400_BAD_REQUEST)
+            return redirect('quizzes.html', {'error':error})
+        
+        if file is None or not file:
+            error={"error": "Not file added"}
+            return render(request,'quizzes.html', {'error':error})
 
         if not (file.name.endswith(".csv") or file.name.endswith(".xlsx")):
-            return Response(
-                {"error": "Incorrect Format, only .csv or Excel files permited"},
-                status=HTTP_400_BAD_REQUEST,
-            )
+            error={"error": "Incorrect Format, only .csv or Excel files permited"},
+            return render(request,'quizzes.html', {'error':error})
 
         # Dataframe to read and normalize
         if file.name.endswith("csv"):
+            contenido = file.read()
             try:
+                texto = contenido.decode("utf-8")
+            except UnicodeDecodeError:
+                texto = contenido.decode("latin-1")
 
-                df = pd.read_csv(file, encoding="utf-8", delimiter=";")
-
-            except:
-                # Garantizes CSV UTF-8 because accents interpreted errors
-                memo_file = ensureDecode(file)
-                df = pd.read_csv(memo_file, encoding="utf-8", delimiter=";")
+            df = pd.read_csv(io.StringIO(texto), delimiter=";")
         elif file.name.endswith("xlsx"):
-            df = pd.read_excel(file)
+                df = pd.read_excel(file)
         else:
-            return Response(
-                {"error": "Incorrect Format, only CSV or XLSX files permited"},
-                status=HTTP_400_BAD_REQUEST,
-            )
+            error ={"error": "Incorrect Format, only CSV or XLSX files permited"},
+            return render(request,'quizzes.html', {'error':error})
         try:
             df_normal = normalizeFile(df)
         except ValidationError as v:
-            return Response({f"Tiene valores vacíos. {v}"}, status=HTTP_400_BAD_REQUEST)
+            error = {f"Tiene valores vacíos. {v}"}
+            return render(request, 'quizzes.html', {'error':error})
+        
         with transaction.atomic():
             quiz = Quiz.objects.create(file=file.name)
-            """question_BD = []
-            appearance_BD = []"""
 
             for i in range(len(df_normal)):
 
@@ -198,255 +167,583 @@ class QuizViews(APIView):
                         idA=areaIntN,
                     )
                 except ValidationError as ve:
-                    return Response(
-                        {
-                            "error": f"Error al insertar la fila {i+1} la dimensión, área de interés o contenido nuclear. Error: {ve}"
-                        },
-                        status=HTTP_400_BAD_REQUEST,
-                    )
+                    error={"error": f"Error al insertar la fila {i+1} la dimensión, área de interés o contenido nuclear. Error: {ve}"}
+                    return render(request,'quizzes.html', {'error':error})
                 try:
-                    question = Question.objects.create(
-                        numero=i + 1,
-                        statement=df_normal.iloc[i]["enunciado"],
-                        time=time(0, 0, 30),
-                        difficult_level=df_normal.iloc[i]["dificultad"],
-                        version=0,
-                        idD=dimensionN,
-                        idA=areaIntN,
-                        idC=coreCont,
+                    row = df_normal.iloc[i]
+                    # if Question.objects.filter(statement=df_normal.iloc[i]["enunciado"]).exists():
+                    #     question = Question.objects.get(statement=df_normal.iloc[i]["enunciado"])
+                    # else:    
+                    #     question = Question.objects.create(
+                    #         numero=i + 1,
+                    #         statement=df_normal.iloc[i]["enunciado"],
+                    #         time=time(0, 0, 30),
+                    #         difficult_level=df_normal.iloc[i]["dificultad"],
+                    #         version=0,
+                    #         idD=dimensionN,
+                    #         idA=areaIntN,
+                    #         idC=coreCont,
+                    #     )
+
+                    question, _ = Question.objects.get_or_create(
+                        statement=row["enunciado"],
+                        defaults={
+                            'numero':i + 1,
+                            'statement':row["enunciado"],
+                            'time':time(0, 0, 30),
+                            'difficult_level':row["dificultad"],
+                            'version':0,
+                            'idD':dimensionN,
+                            'idA':areaIntN,
+                            'idC':coreCont
+                        }
                     )
-                    """
-                    question_BD.append(question)
-                    appearance = AppearanceQuiz(quiz=quiz, question=question)
-                    question.full_clean
-                    appearance.full_clean
-                    question_BD.append(question)
-                    appearance_BD.append(appearance)
-                    """
+          
                     # Apperance model is through many to many field quiz question
                     quiz.question.add(question)
 
                 except ValidationError as ve:
-                    return Response(
-                        {"error": f"Error al insertar la pregunta de la fila {i+1}, Error: {ve}"},
-                        status=HTTP_400_BAD_REQUEST,
-                    )
-                """option_BD = []
-                optionQ_BD = []"""
-                for op in df_normal.iloc[i]["opciones"]:
+                    error = {"error": f"Error al insertar la pregunta de la fila {i+1}, Error: {ve}"}
+                    return render(request,'quizzes.html', {'error':error})
+
+                for op in row["opciones"]:
                     try:
-
                         valor_op_mapeado = Opciones[op]
-                        """
-                        option = Option(valor_op_mapeado)
-                        option.full_clean
-                        # Create only one kind of option per quetsion in Option Table
-                        if option not in option_BD:
-                            option_BD.append(option)
-                        """
-
                         # Create only one kind of option per quetsion in Option Table
                         option, _ = Option.objects.get_or_create(option=valor_op_mapeado)
-
-                        """optionQ = OptionQuestion(idO=option, idP=question, motive=None)
-                        optionQ.full_clean"""
-                        optionQ = oqm.objects.create(idP=question, idO=option, motive=None)
-                        if op == df_normal.iloc[i]["solucion"]:
-                            optionQ.motive = df_normal.iloc[i]["motivo"]
+                       
+                        optionQ, _ = oqm.objects.get_or_create(
+                            idP=question, 
+                            idO=option, 
+                            defaults={"motive": None})
+                    
+                        if op == row["solucion"]:
+                            optionQ.motive = row["motivo"]
                             optionQ.save()
 
                         # optionQ_BD.append(optionQ)
 
                     except ValidationError as ve:
-                        return Response(
-                            {
-                                "error": f" Corrija la opción {valor_op_mapeado} del campo de opciones de la fila {i+1}"
-                            },
-                            status=HTTP_400_BAD_REQUEST,
-                        )
+                        error = {"error": f" Corrija la opción {valor_op_mapeado} del campo de opciones de la fila {i+1}"}
+                        return render(request, 'quizzes.html', {'error':error})
+            return render(request,'quizzes.html',{'quiz':quiz})
+               
 
-            #     if i >= env("batch_size"):
-            #         Question.objects.bulk_create(question_BD, batch_size=env("batch_size"))
-            #         AppearanceQuiz.objects.create(appearance_BD, batch_size=env("batch_size"))
-            #         Option.objects.bulk_create(option_BD, batch_size=env("batch_size"))
-            #         OptionQuestion.objects.bulk_create(optionQ_BD, batch_size=env("batch_size"))
-
-            # # if i have still some objects to create
-            # Question.objects.bulk_create(question_BD)
-            # AppearanceQuiz.objects.bulk_create(appearance_BD)
-            # Option.objects.bulk_create(option_BD)
-            # OptionQuestion.objects.bulk_create(optionQ_BD)
-
-        return Response({"success"}, status=HTTP_200_OK)
-
-    # --------- other funtions ---------
-Opciones = {
-    "Verdadero": "Verdadero",
-    "True": "Verdadero",
-    "Vertader": "Verdadero",
-    "Falso": "Falso",
-    "False": "Falso",
-    "Fals": "Falso",
-    "No lo sé": "No lo sé",
-    "No ho sé": "No lo sé",
-    "No en sé": "No lo sé",
-    "No sé": "No lo sé",
-}
-
-"""
-    Ensures right decode to CSV if is not a UTF-8 CSV, because accents can't be resolved corrected.
-    Returns a new csv file in memory to be decoded into a new utf-8 file.
-"""
-def ensureDecode(file):
-    contenido_str = file.read().decode("latin-1")
-    # To read text and not bytes in memory we need io library
-    archivo_en_memoria = io.StringIO(contenido_str)
-    return archivo_en_memoria
-
-
-def normalizeFile(df):
-
-    NEW_header = [
-        "enunciado",
-        "dimension",
-        "area",
-        "contenido",
-        "dificultad",
-        "solucion",
-        "motivo",
-        "opciones",
-    ]
-
-    # Set columns header
-    df.columns = NEW_header
-
-    # set data types
-    df = df.astype("string")
-    df["dificultad"] = df["dificultad"].astype("int")
-
-    # NA values
-    df["dificultad"] = df["dificultad"].fillna(0)
-
-    # Delete all NaN rows
-    df = df.dropna(how="all")
-
-    # Manage NA values of all dataframe
-    # fill value as back or forward value
-    # bfill is back fill with the next no NaN value
-    # df_bfill = df.bfill()
-    df = df.ffill()
-
-    # Advertise NaN values
-    nan_positions = df.isna()
-    # Obtain nan rows and columns indexes
-    nan_locations = nan_positions.stack()
-    nan_rows_columns = nan_locations[nan_locations].index
-    for row, col in nan_rows_columns:
-        raise ValidationError(f"Fila: {row}, Columna: {col} no tiene un valor")
-
-    # Guardar orden
-    df["ordenD"] = df["dimension"].str.extract(r"(\d+)\.").astype(int)
-
-    df["dimension"] = df["dimension"].str.extract(r"([a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+)")
-    df["ordenA"] = df["area"].str.extract(r"(?<=\d\.)(\d+)").astype(int)
-    df["area"] = df["area"].str.extract(r"([a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+)")
-    df["solucion"] = df["solucion"].map(Opciones).astype("string")
-    df["opciones"] = df["opciones"].str.split(";")
-
-    # determine separator
-    signos = ",;:?!.-_¨´+*^`[]¿¡'&%()$#·@!º\ª{} "
-    signos_f = ",;:-_¨´+*^`[¿'&%($#·@º\ª{ "
-
-    # # delete blanks before and after each colum
-    for i in df.select_dtypes(include=["string"]).columns:
-        df[i] = df[i].str.strip()
-        df[i] = df[i].str.lstrip(signos + '"')
-        df[i] = df[i].str.rstrip(signos_f)
-        df[i] = df[i].str.capitalize()
-
-    return pd.DataFrame(df)
-
-
-def mapping(op):
-
-    # Only the first option is capitalize to compare we need all of them
-    if op.capitalize() in Opciones:
-        op = Opciones[op.capitalize()]
-        return op, Opciones[op.capitalize()]
-    else:
-        OptionError = Exception(f"No ha escrito bien las opciones")
-        return OptionError
+class QuizDeleteView(DeleteView):
+    model = Quiz
+    success_url = reverse_lazy("quizzes_list")
+    pk_url_kwarg = "idQ"
 
 # ------ QUESTION VIEWS -------
-# ModeliViewSet has already implemented to use create, retrieve, partial_update, update, destroy and list methods.
-class QuestionView(ModelViewSet):
-    queryset = Question.objects.all()
-    serializer_class = QuestionSerializer()
+# ModeliViewSet to APIView has already implemented to use create, retrieve, partial_update, update, destroy and list methods.
+class BaseQuestionMixin:
+    model = Question
+    pk_url_kwarg = "idP"
+
+# To see Question values
+class QuestionDetailView(BaseQuestionMixin, DetailView):
+    template_name = "question.html"
+    context_object_name = "question"
+    fields = [
+        "idP",
+        "numero",
+        "difficult_level",
+        "version" "statement",
+        "idD__dimension",
+        "idD__orden",
+        "idA__int_area",
+        " idA__orden",
+        "idC__core_cont",
+        "time",
+        "date",
+    ]
+
+
+# To modify a question
+class QuestionUpdateView(BaseQuestionMixin, UpdateView):
+    template_name = "question.html"
+    context_object_name = "question"
+    fields = [
+        "statement",
+        "idD__dimension",
+        "idD__orden",
+        "idA__int_area",
+        " idA__orden",
+        "idC__core_cont",
+    ]
 
 # ------ SHOW ANSWERS ----------------
-class ShowAnswersByRespondant(APIView):
+class ShowAnswers(PaginationBlockMixin, ListView):
+    model = Respuesta
+    template_name = "answers.html"
+    context_object_name = "answers"
+    paginate_by = 20
+    # if you want personalize page range by default 5
+    # block_page_size = 10 
 
-    def get(self, request):
-        answers = Respuesta.objects.select_related("respondant")
-        answers_respondant = answers.annotate("respondant").values(
-            "respondant__id",
-            "question__id",
-            "statement",
-            "solution",
-            "answer",
-            "date",
-            "time",
-        )
-        if answers_respondant.exists():
-            serializer = RespuestaSerializer(answers_respondant, many=True)
+    def get_queryset(self):
+        answers = Respuesta.respuesta_manager.answers_queryset()
+        return answers
 
-            return Response({"success", serializer.data}, status=HTTP_200_OK)
-        return Response({"error": answers}, status=HTTP_404_NOT_FOUND)
-   
-class ShowAnswers(View):
-    def get(self, request):
-        respuestas = Respuesta.objects.all()
-        if respuestas is not None:
-            res_serial = RespuestaSerializer(respuestas, many=True)
-            print(res_serial.data)
-            print("answers")
-            return render(request, 'answers.html', res_serial.data)
-            return Response({'success': res_serial.data}, status=HTTP_200_OK)
-        return Response({'error': respuestas}, status=HTTP_404_NOT_FOUND)
+class ShowAnswersByQuiz(PaginationBlockMixin, ListView):
+    model = Respuesta
+    template_name = "answers.html"
+    context_object_name = "answers"
+    paginate_by = 20
+    pk_url_kwarg = "idQ"
 
-        return render(request, 'answers.html', respuestas)
+    def get_queryset(self):
+        idQ = self.kwargs["idQ"]
+        answers = Respuesta.respuesta_manager.answers_queryset()
+        answers = answers.by_quiz(idQ)
+        # answers = answers.filter(question__question_in_each_quiz=idQ)
+        return answers
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["idQ"] = self.kwargs["idQ"]
+        return context
 
-# Exportar resultados en excel
+'''Search one respondant selected into a filter from the table of answers'''
+class ShowAnswersFromRespondant(PaginationBlockMixin,ListView):
+    model = Respuesta
+    template_name = "answers.html"
+    context_object_name = "answers"
+    paginate_by = 20
+    pk_url_kwarg = "idRes"
+    
+    def get_queryset(self):
+        idRes = self.kwargs["idRes"]
+        answers = Respuesta.respuesta_manager.answers_queryset()
+        answers = answers.by_user(idRes)
+        return answers
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["idRes"] = self.kwargs["idRes"]
+        return context
+    
+'''Show all answers responded by each respondant, their success and quizzes answered'''
+class ShowAnswersByRespondant(PaginationBlockMixin,ListView):
+    model = Respuesta
+    template_name = "answers_users.html"
+    context_object_name = "answers"
+    paginate_by = 20
 
+    def get_queryset(self):
+        answers = Respuesta.respuesta_manager.answers_queryset()
+        # groupby informtaion by respondant or must be reverse
+        answers_respondant = answers.annotate(
+            'respondant',
+            'question__question_in_each_quiz__idQ',
+            fileName='question__question_in_each_quiz__file',
+            total_questions=Count('question'),
+            total_corrects=Count(respuesta__is_correct=True),
+            total_incorrects=Count(respuesta__is_correct=False),
+        )  
+        return answers_respondant
+    
+''' esport all answers by respondant'''
+def export_by_user_quiz(request):
+    answers = Respuesta.respuesta_manager.answer_queryset()
+    answers = answers.by_respondant_summary()
+    df = pd.DataFrame(list(answers))
+    df = format(df) 
+    response = export_as_csv_or_excel(request, df, 'answers_by_respondant')
+    return response
+
+
+# Export answers as csv or excel
+def export_answers(request, **kwargs):
+    answers = Respuesta.respuesta_manager.answers_queryset()
+    idQ = request.GET.get('idQ') or kwargs.get("idQ") 
+    idRes= request.GET.get('idRes') or kwargs.get("idQ") 
+    print(kwargs)
+    if idQ:
+        answers = answers.by_quiz(idQ=idQ)
+    
+    if idRes:
+        answers = answers.by_user(idRes)
+
+    answers = answers.export()
+    df = pd.DataFrame(list(answers))
+    df = format(df)
+    response = export_as_csv_or_excel(request=request, df=df, resultName='answers')
+    return response
 # ----------------- USERS -----------------
-class ShowUsers(APIView):
+def query_respondants():
+    # Only show respondant that have answered some question
+    respondants = (
+        Respondant.objects.filter(respuesta__isnull=False)
+        .distinct()
+        .select_related("profesional")
+        .prefetch_related(
+            # if i want quizzes distinct i have to go
+            "question__respondant_answer_to_question",
+            # from respondant
+            "profarea",
+            "satisfation",
+            # from profesional
+            "profesional__activities",
+            "profesional__sectors",
+            "profesional__enviroments",
+            # Dedication from each activity
+            "profesional__id_between_activity_profesional",
+        )
+    )
 
-    def get(self, request):
-        if Respondant.objects.all().exists():
-            respondant = Respondant.objects.all()
-            # res_ser = RespondantSerializer(respondant)
-            
-            paginator =LargeQuestionNumberPagination()
-            res_paginated = paginator.paginate_queryset(respondant, request=request)
-            res_serial = RespondantSerializer(res_paginated, many=True)
-            try: 
-                profesional = Profesional.objects.get(profesional=respondant)
-            except Profesional.DoesNotExist:
-                return paginator.get_paginated_response(res_serial.data)
-                # return render(request, 'users.html', res_serial.data)
+    return respondants
 
-            prof_paginated = paginator.paginate_queryset(profesional, request)
-            profesional_serial = ProfesionalSerializer(prof_paginated, many=True)
-            return paginator.get_paginated_response(profesional_serial.data)
-            # return render(request, 'users.html', profesional_serial.data)
-        else:
-            return render(request, 'users.html', res_serial.data )
+class ShowUsers(PaginationBlockMixin, ListView):
+    model = Respondant
+    paginate_by = 20
+    template_name = "users.html"
+    context_object_name = "respondants"
 
-# Exportar usuarios en excel
-def export_users():
-    respondant = Respondant.objects.all()
-    wb = xl.Workbook()
-    ws = wb.active
-    ws.title = "Users"
+    def get_queryset(self):
+        respondants = query_respondants()
+    
+        # select from users view to filter by user
+        idRes=self.request.GET.get("idRes") 
+        print(idRes)
+        if idRes and idRes!='all':
+            respondants = respondants.filter(respondant=idRes)
 
-    ws.append(['ID', 'Edad','Sexo', 'Nacionalidad', 'Ciudad', 'Provincia', 'Nivel PBE','Conocimiento PBE', 'Formación PBE', '' ])
+        for r in respondants:
+
+            # Plus info if it is profesional
+            if hasattr(r, "profesional"):
+                r.profesional_res_set = set(r.profarea.all())
+                # r.activities_res_set = (r.profesional.activities.all())
+                r.sector_res_set = set(r.profesional.sectors.all())
+                r.enviroment_res_set = set(r.profesional.enviroments.all())
+
+                r.activities_res_set = []
+                activities = Activity.objects.all().distinct()
+                for act in activities:
+                    if act.idAct in r.profesional.id_between_activity_profesional.values_list(
+                        "activity", flat=True
+                    ):
+                        r.activities_res_set.append(
+                            r.profesional.id_between_activity_profesional.get(
+                                activity=act.idAct
+                            ).percentatge
+                        )
+                    else:
+                        r.activities_res_set.append(0)
+
+            # GET all distinct quizzes
+            r.quizzes = (
+                Quiz.objects.filter(question__respondant_answer_to_question=r)
+                .distinct()
+                .values_list("idQ", flat=True)
+            )
+
+        return respondants
+
+    """Return all objects that can be m2m to put in table's header"""
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        context["activities"] = Activity.objects.all().distinct()
+        context["sectors"] = Sector.objects.all().distinct()
+        context["enviroments"] = Enviroment.objects.all().distinct()
+        context["profesionalareas"] = ProfesionalArea.objects.all().distinct()
+
+        return context
+
+""" Export users in a csv o excel file with m2m data as stadistics
+    export with 0s and 1s and values m2m as headers"""
+def export_users(request):
+    type = request.GET.get('type')
+    if type == 'simple':
+        response = export_users_simple(request)
+    else:  
+        response = export_users_complex(request)
+    return response
+
+# Export respondants to excel
+def export_users_complex(request):
+    # export simple values
+    respondants = query_respondants()
+    # first build columns their headers
+    columns = []
+    rfields = Respondant._meta.get_fields()
+    pfields = Profesional._meta.get_fields()
+    
+    default_secs = ["Público", "Privado", "Centro concertado o mixto"]
+    default_envs = [
+        "Atención especializada",
+        "Atención Primaria/ domiciliaria",
+        "Centro sociosanitario",
+        "Sistema escolar",
+        "Universidad",
+        "Consulta propia",
+    ]
+    activities = Activity.objects.all().distinct()
+    sectors = Sector.objects.values_list("sector", flat=True).distinct()
+    enviroments = Enviroment.objects.values_list("enviroment", flat=True).distinct()
+    profesionalareas = ProfesionalArea.objects.values_list("profarea", flat=True).distinct()
+
+    for rfield in rfields:
+        # reverse relations out
+        if rfield.auto_created and not rfield.concrete:
+            continue
+
+        if hasattr(rfield, "verbose_name") and rfield.name != "respondant":
+            if rfield.verbose_name == "Satisfacciones":
+                for sq in Satisfation.objects.values_list("questionS", flat=True).distinct():
+                    pregunta = sq.split()[-1]
+                    columns.append(pregunta)
+
+            elif rfield.verbose_name == "Áreas Profesionales":
+                for ap in profesionalareas:
+                    columns.append(ap)
+            else:
+                columns.append(rfield.verbose_name)
+                # add field name detalles to put description field
+                if rfield.name == "academic_level":
+                    columns.append("Detalle")
+
+    for pfield in pfields:
+
+        if hasattr(pfield, "verbose_name") and pfield.name != "profesional":
+            match pfield.verbose_name:
+                case "Actividades":
+                    for act in activities:
+                        columns.append(act.activity)
+                case "Sectores":
+                    for sec in sectors:
+                        if sec == "Otros":
+                            columns.append(sec + "_sec")
+                        # not include others sectors
+                        if sec in default_secs:
+                            columns.append(sec)
+                case "Entornos":
+                    for env in enviroments:
+                        if env == "Otros":
+                            columns.append(env + "_env")
+                        # not include others enviroments
+                        if env in default_envs:
+                            columns.append(env)
+                case _:
+                    columns.append(pfield.verbose_name)
+
+    # Treat rest of data generate rows
+    rows = []
+    # Put values on each field and explore each m2m field to bind themselfs
+    for r in respondants:
+        data = {}
+        # add respondants attributes
+        for rfield in rfields:
+            # reverse relations out
+            if rfield.auto_created and not rfield.concrete:
+                continue
+            # boolean columns transform to Sí o No
+            if isinstance(rfield, models.BooleanField):
+                if getattr(r, rfield.name) == True:
+                    data[rfield.verbose_name] = "Sí"
+                else:
+                    data[rfield.verbose_name] = "No"
+            else:
+                # rest of fields
+                data[rfield.verbose_name] = getattr(r, rfield.name)
+
+        # Quizzes
+        r.quizzes = (
+            Quiz.objects.filter(question__respondant_answer_to_question=r)
+            .distinct()
+            .values_list("idQ", flat=True)
+        )
+
+        if "Preguntas" in columns:
+            columns[columns.index("Preguntas")] = "Quizzes"
+
+        data["Quizzes"] = ",".join(str(q) for q in r.quizzes)
+
+        # Speciality
+        data["Detalle"] = r.academic_level.description
+
+        # M2M
+        # data['Áreas Profesionales'] = ",".join(a.profarea for a in r.profarea.all())
+        for pa in profesionalareas:
+            data[pa] = 0
+        for rpa in r.profarea.all():
+            data[rpa.profarea] = 1
+
+        # Satisfations
+        for s in r.satisfation.all():
+            pregunta = s.questionS.split()[-1]
+            data[pregunta] = s.value
+
+        if hasattr(r, "profesional"):
+            for pfield in pfields:
+                # reverse relations and autocreated out
+                if pfield.auto_created and not pfield.concrete:
+                    continue
+
+                # tranform true or false into sí o no
+                if isinstance(pfield, models.BooleanField):
+                    if getattr(r.profesional, pfield.name) == True:
+                        data[pfield.verbose_name] = "Sí"
+                    else:
+                        data[pfield.verbose_name] = "No"
+                # assign each profesional field a value
+                data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
+
+            # sectors
+            for sec in sectors:
+                data[sec] = 0
+            for psec in r.profesional.sectors.all():
+                data[psec.sector] = 1
+
+            data["Otros_sec"] = ",".join(
+                oth_sec.sector
+                for oth_sec in r.profesional.sectors.all()
+                if oth_sec.sector not in default_secs
+            )
+
+            # enviroments
+            for env in enviroments:
+                data[env] = 0
+            for penv in r.profesional.enviroments.all():
+                data[penv.enviroment] = 1
+
+            data["Otros_env"] = ",".join(
+                oth_env.enviroment
+                for oth_env in r.profesional.enviroments.all()
+                if oth_env.enviroment not in default_envs
+            )
+
+            # activities
+            for act in Activity.objects.all().distinct():
+                if act.idAct in r.profesional.id_between_activity_profesional.values_list(
+                    "activity", flat=True
+                ):
+                    data[act.activity] = r.profesional.id_between_activity_profesional.get(
+                        activity=act.idAct
+                    ).percentatge
+                else:
+                    data[act.activity] = 0
+
+        # Add each respondant info
+        rows.append(data)
+
+    # Generate dataframe with the columns as header and rows as user infomation
+    df = pd.DataFrame(rows, columns=columns)
+    response = export_as_csv_or_excel(request=request, df=df, resultName='users_complex')
+
+    return response
+
+
+"""export users data as m2m binded with commas """
+def export_users_simple(request):
+    respondants = query_respondants()
+
+    # first build columns their headers
+    columns = []
+    rfields = Respondant._meta.get_fields()
+    pfields = Profesional._meta.get_fields()
+
+    # Get all fields from a Respondant and Profesional
+    for rfield in rfields:
+        # reverse relations out
+        if rfield.auto_created and not rfield.concrete:
+            continue
+
+        if hasattr(rfield, "verbose_name") and rfield.name != "respondant":
+            # Split satisfation in each value
+            if rfield.verbose_name == "Satisfacciones":
+                for sq in Satisfation.objects.values_list("questionS", flat=True).distinct():
+                    pregunta = sq.split()[-1]
+                    columns.append(pregunta)
+            else:
+                columns.append(rfield.verbose_name)
+                # add detalle to put more info related on academic level
+                if rfield.name == "academic_level":
+                    columns.append("Detalle")
+
+    for pfield in pfields:
+        if hasattr(pfield, "verbose_name") and pfield.name != "profesional":
+            if pfield.verbose_name == "Actividades":
+                for act in Activity.objects.values_list("activity", flat=True).distinct():
+                    columns.append(act)
+            else:
+                columns.append(pfield.verbose_name)
+
+    # Treat rest of data generate rows
+    rows = []
+    # Put values on each field and explore each m2m field to bind themselfs
+    for r in respondants:
+        data = {}
+
+        # add respondants attributes
+        for rfield in rfields:
+            # reverse relations out
+            if rfield.auto_created and not rfield.concrete:
+                continue
+
+            # boolean columns transform to Sí o No
+            if isinstance(rfield, models.BooleanField):
+                if getattr(r, rfield.name) == True:
+                    data[rfield.verbose_name] = "Sí"
+                else:
+                    data[rfield.verbose_name] = "No"
+            else:
+                # rest of fields
+                data[rfield.verbose_name] = getattr(r, rfield.name)
+
+        # Quizzes
+        r.quizzes = (
+            Quiz.objects.filter(question__respondant_answer_to_question=r)
+            .distinct()
+            .values_list("idQ", flat=True)
+        )
+
+        if "Preguntas" in columns:
+            columns[columns.index("Preguntas")] = "Quizzes"
+
+        data["Quizzes"] = ",".join(str(q) for q in r.quizzes)
+
+        # Speciality
+        data["Detalle"] = r.academic_level.description
+
+        # M2M
+        data["Áreas Profesionales"] = ",".join(a.profarea for a in r.profarea.all())
+
+        # Satisfations
+        for s in r.satisfation.all():
+            pregunta = s.questionS.split()[-1]
+            data[pregunta] = s.value
+
+        if hasattr(r, "profesional"):
+            for pfield in pfields:
+                # reverse relations and autocreated out
+                if pfield.auto_created and not pfield.concrete:
+                    continue
+                data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
+
+            # sectors
+            data["Sectores"] = ",".join(sec.sector for sec in r.profesional.sectors.all())
+
+            # enviroments
+            data["Entornos"] = ",".join(env.enviroment for env in r.profesional.enviroments.all())
+
+            # activities
+            for act in Activity.objects.all().distinct():
+                if act.idAct in r.profesional.id_between_activity_profesional.values_list(
+                    "activity", flat=True
+                ):
+                    data[act.activity] = r.profesional.id_between_activity_profesional.get(
+                        activity=act.idAct
+                    ).percentatge
+                else:
+                    data[act.activity] = 0
+
+        # Add each respondant info
+        rows.append(data)
+    # Generate dataframe with the columns as header and rows as user infomation
+    df = pd.DataFrame(rows, columns=columns)
+    response = export_as_csv_or_excel(request=request, df=df, resultName='users_simple')
+   
+    return response

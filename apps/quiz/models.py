@@ -8,7 +8,9 @@ from django.contrib.auth.models import (
     PermissionsMixin,
 )
 from django.db import models
-from django.db.models import Q
+
+from django.db.models.functions import Concat
+from django.db.models import Q, F, Value, CharField, Count, Sum, Subquery, OuterRef
 from django.contrib.auth.models import Group, Permission
 
 # from apps.quiz.utils.permissions import assign_permissions
@@ -52,7 +54,6 @@ class InterestArea(models.Model):
             + self.idD.dimension
         )
 
-
 class CoreContent(models.Model):
     idC = models.SmallAutoField(primary_key=True)
     core_cont = models.CharField(max_length=125)
@@ -66,17 +67,17 @@ class CoreContent(models.Model):
 
 
 class Question(models.Model):
- 
+     
     idP = models.BigAutoField(primary_key=True)
-    numero = models.PositiveIntegerField(default=1)
-    statement = models.CharField(max_length=500, unique=True)
+    numero = models.PositiveIntegerField(default=1,verbose_name="Número")
+    statement = models.CharField(max_length=500, unique=True, verbose_name="Enunciado")
     time = models.TimeField()
-    difficult_level = models.PositiveSmallIntegerField()
+    difficult_level = models.PositiveSmallIntegerField(verbose_name="Nivel de dificultad")
     version = models.PositiveIntegerField(default=0)
     date = models.DateTimeField(auto_now=True)
-    idD = models.ForeignKey(Dimension, on_delete=models.CASCADE, null=True)
-    idA = models.ForeignKey(InterestArea, on_delete=models.CASCADE, null=True)
-    idC = models.ForeignKey(CoreContent, on_delete=models.CASCADE, null=True)
+    idD = models.ForeignKey(Dimension, on_delete=models.CASCADE, null=True, verbose_name="Dimension")
+    idA = models.ForeignKey(InterestArea, on_delete=models.CASCADE, null=True, verbose_name="Área de interés")
+    idC = models.ForeignKey(CoreContent, on_delete=models.CASCADE, null=True, verbose_name="Contenido nuclear")
 
     class Meta:
         indexes = [models.Index(fields=["statement", "numero", "version"])]
@@ -113,14 +114,14 @@ class OptionQuestion(models.Model):
                 .exclude(Q(motive__isnull=True) | Q(motive="") | Q(motive=" "))
                 .values("idP", "idO", "motive")
             )
-
+        
     idP = models.ForeignKey(
         Question, on_delete=models.CASCADE, related_name="option_value_to_question"
     )
     idO = models.ForeignKey(
         Option, on_delete=models.CASCADE, related_name="option_value"
     )  # this id of the value
-    motive = models.TextField(max_length=250, null=True)
+    motive = models.TextField(max_length=250, null=True, verbose_name="Motivo")
     pk = models.CompositePrimaryKey("idP", "idO")
 
     objects = models.Manager()  # default
@@ -149,7 +150,6 @@ class AppearanceQuiz(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     pk = models.CompositePrimaryKey("question", "quiz")
-
 
 # ----------- INTERVIEWER CLASS(is MyUser) ---------
 # AbstractUser to adapt default User Django Class
@@ -222,6 +222,9 @@ class Satisfation(models.Model):
 
 class YearAcademicLevel(models.Model):
     year = models.PositiveSmallIntegerField(primary_key=True)
+    
+    def __str__(self):
+        return str(self.year)
 
 
 class AcademicLevel(models.Model):
@@ -236,7 +239,9 @@ class AcademicLevel(models.Model):
     # null True permits set null in a database field
     year = models.ForeignKey(YearAcademicLevel, on_delete=models.CASCADE)
 
-
+    def __str__(self):
+        return self.academic_lvl
+    
 class Respondant(models.Model):
 
     class Sex(models.TextChoices):
@@ -248,32 +253,44 @@ class Respondant(models.Model):
         RANKING_GLOBAL.append((i, str(i)))
 
     respondant = models.OneToOneField(MyUser, on_delete=models.CASCADE)
-    age = models.PositiveSmallIntegerField()
-    sex = models.CharField(choices=Sex)
-    nationality = models.CharField(max_length=25)
-    city = models.CharField(max_length=125)
-    region = models.CharField(max_length=125)
-    level_PBE = models.PositiveSmallIntegerField()
-    PBE_knownledge = models.BooleanField(default=False)
-    PBE_training = models.CharField(max_length=125, null=True)
-    speciality = models.CharField(max_length=50, null=True)
-    academic_level = models.ForeignKey(AcademicLevel, on_delete=models.CASCADE, null=True)
+    age = models.PositiveSmallIntegerField(verbose_name='Edad')
+    sex = models.CharField(choices=Sex, verbose_name='Sexo')
+    nationality = models.CharField(max_length=25, verbose_name='Nacionalidad')
+    city = models.CharField(max_length=125, verbose_name='Ciudad')
+    region = models.CharField(max_length=125, verbose_name='Provincia/Región')
+    level_PBE = models.PositiveSmallIntegerField(verbose_name='Nivel de conocimiento PBE')
+    PBE_knownledge = models.BooleanField(default=False, verbose_name='Formación en PBE')
+    PBE_training = models.CharField(max_length=125, null=True, verbose_name='Tipo de formación PBE')
+    speciality = models.CharField(max_length=50, null=True, verbose_name='Especialidad')
+    academic_level = models.ForeignKey(AcademicLevel, on_delete=models.CASCADE, null=True, verbose_name='Nivel Académico')
 
-    grade = models.PositiveSmallIntegerField(choices=RANKING_GLOBAL, default=0)
+    grade = models.PositiveSmallIntegerField(choices=RANKING_GLOBAL, default=0, verbose_name='Grado satisfacción')
 
     # if i change the name to reply or answer don't works but Respuesta sí.
     question = models.ManyToManyField(
         Question, through="Respuesta", related_name="respondant_answer_to_question"
+        ,verbose_name='Preguntas'
     )
     # profarea =    models.ManyToManyField(ProfesionalArea, through='SatisfationGrade', related_name='profesional_area_user')
-    profarea = models.ManyToManyField(ProfesionalArea)
+    profarea = models.ManyToManyField(ProfesionalArea, verbose_name='Áreas Profesionales')
     satisfation = models.ManyToManyField(
         Satisfation, through="SatisfationRes", related_name="satisfation_per_user"
+        ,verbose_name='Satisfacciones'
     )
 
-    def __str__(self):
-        return f"ID: {self.respondant.id} Edad: {str(self.age)} Sexo: {self.sex} Nacionalidad: {self.nationality } Ciudad: {self.city} Región:  {self.region} Nivel académico: {self.academic_level} Año del nivel académico: {self.academic_level.year if self.academic_level.year else 'N/A' } Area profesional/estudio:{self.profarea.values_list(flat=True)} Nivel de PBE: {self.level_PBE or "N/A"} Conocimiento en PBE {self.PBE_knownledge} PBE training:{self.PBE_training or "N/A"} Especialidad: {self.speciality or "N/A"}"
-
+    # def __str__(self):
+    #     return (f"ID: {self.respondant.id}"  
+    #         f"Edad: {str(self.age)}" 
+    #         f"Sexo: {self.sex}" 
+    #         f"Nacionalidad: {self.nationality}" 
+    #         f"Ciudad: {self.city}" 
+    #         f"Región:  {self.region}" 
+    #         f"Nivel académico: {self.academic_level}" 
+    #         f"Año del nivel académico: {self.academic_level.year if self.academic_level else 'N/A'}" 
+    #         f"Nivel de PBE: {self.level_PBE or "N/A"}" 
+    #         f"Conocimiento en PBE {self.PBE_knownledge}" 
+    #         f"PBE training:{self.PBE_training or "N/A"}" 
+    #         f"Especialidad: {self.speciality or "N/A"}")
 
 class SatisfationRes(models.Model):
     idS = models.ForeignKey(Satisfation, on_delete=models.CASCADE)
@@ -281,16 +298,106 @@ class SatisfationRes(models.Model):
     pk = models.CompositePrimaryKey("idS", "idRes")
 
 # ------------- ANSWER CLASS --------------
+class RespuestaQueryset(models.QuerySet):
+    def answers_queryset(self):
+        answers = (
+            self.select_related(
+                "question",
+                "answer",
+                "question__idA",
+                "question__idD",
+                "question__idC",
+            )
+            .prefetch_related(
+                "question__question_in_each_quiz",
+                "question__question_values"
+            )
+        )
+        return answers
+
+    def by_quiz(self, idQ):
+        return self.filter(question__question_in_each_quiz=idQ)
+    
+    def by_user(self, idRes):
+        return self.filter(respondant=idRes)
+
+    def export(self):
+        answers = self.annotate(
+            dimension = F('question__idD__orden'),
+            # dimension=Concat(
+            #     F('question__idD__orden'),
+            #     Value('.'),
+            #     F('question__idD__dimension'),
+            #     output_field=CharField()
+            # ),
+            area_interes=F('question__idA__orden'),
+            # area_interes=Concat(
+            #     F('question__idA__orden'),
+            #     Value('.'),
+            #     F('question__idA__int_area'),
+            #     output_field=CharField()
+            # ),
+            contenido_nuclear=F('question__idC__core_cont'),
+            enunciado=F('question__statement'),
+            dificultad=F('question__difficult_level'),
+            respuesta=F('answer__option'),
+            es_correcta=F('is_correct'),
+            motivo = Subquery(OptionQuestion.objects.filter(
+                idP=OuterRef('question'),
+                motive__isnull=False).exclude(
+                    Q(motive__isnull=True)|
+                    Q(motive="") |
+                    Q(motive=" "))
+                .values('motive')),
+            solucion=Subquery(OptionQuestion.objects.filter(
+                idP=OuterRef('question'),
+                motive__isnull=False).exclude(
+                    Q(motive__isnull=True)|
+                    Q(motive="") |
+                    Q(motive=" "))
+                .values('idO__option')),
+            tiempo_de_respuesta=F('time'),
+            fecha=F('date')
+            ).values(
+            'respondant',
+            'question',
+            'dimension',
+            'area_interes',
+            'contenido_nuclear',
+            'enunciado',
+            'dificultad',
+            'respuesta',
+            'es_correcta',
+            'solucion',
+            'motivo',
+            'tiempo_de_respuesta',
+            'fecha',
+        )
+        return answers
+    
+    def by_respondant_summary(self):
+        return self.annotate(
+            'respondant',
+            'question__question_in_each_quiz__idQ',
+            fileName='question__question_in_each_quiz__file',
+            total_questions=Count('question'),
+            total_corrects=Count(respuesta__is_correct=True),
+            total_incorrects=Count(respuesta__is_correct=False),
+        )  
+    
 # The class name is in spanish cause django don't permit other
 class Respuesta(models.Model):
-    answer = models.ForeignKey(Option, on_delete=models.CASCADE, null=True)
-      # models.CharField(max_length=25, editable=False, blank=False)
-    time = models.TimeField(editable=False, blank=False)
-    date = models.DateTimeField(auto_now_add=True)
-    respondant = models.ForeignKey(Respondant, on_delete=models.CASCADE)
+    answer = models.ForeignKey(Option, on_delete=models.CASCADE, null=True, verbose_name="Opción")
+    # models.CharField(max_length=25, editable=False, blank=False)
+    time = models.TimeField(editable=False, blank=False, verbose_name="Tiempo de respuesta(s)")
+    date = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de respuesta")
+    respondant = models.ForeignKey(Respondant, on_delete=models.CASCADE, verbose_name="Encuestado/a")
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    is_correct = models.BooleanField(default=False, null=True, blank=True)
+    is_correct = models.BooleanField(default=False, null=True, blank=True, verbose_name="Acierto")
     pk = models.CompositePrimaryKey("respondant", "question")
+
+    objects = models.Manager() # default manager
+    respuesta_manager = RespuestaQueryset.as_manager()
 
     class Meta:
         ordering = ["-date"]
@@ -303,19 +410,17 @@ class Respuesta(models.Model):
     def __str__(self):
         return f"ID {self.pk} Option  {self.answer}, Time{self.time}, question {self.question}"
 
-
 # ------------------- PROFESIONALS --------------------
 class Enviroment(models.Model):
     idEnv = models.AutoField(primary_key=True)
-    enviroment = models.CharField(max_length=125)
+    enviroment = models.CharField(max_length=125, verbose_name='Entorno')
 
     def __str__(self):
         return f"ID: {self.idEnv}, environ {self.enviroment}"
 
-
 class Sector(models.Model):
     idSec = models.AutoField(primary_key=True)
-    sector = models.CharField(max_length=125)
+    sector = models.CharField(max_length=125, verbose_name='Sector')
 
     def __str__(self):
         return f"ID: {self.idSec}, sector: {self.sector}"
@@ -323,24 +428,24 @@ class Sector(models.Model):
 
 class Activity(models.Model):
     idAct = models.AutoField(primary_key=True)
-    activity = models.CharField(max_length=125)
+    activity = models.CharField(max_length=125, verbose_name='Actividad')
 
     def __str__(self):
         return f"ID:  {self.idAct}, activity: {self.activity}"
 
-
 class Profesional(models.Model):
     profesional = models.OneToOneField(Respondant, on_delete=models.CASCADE, primary_key=True)
-    supervisor = models.BooleanField(default=False)
-    dedicationW = models.PositiveIntegerField(default=0)
-    years = models.PositiveIntegerField(default=0)
+    supervisor = models.BooleanField(default=False, verbose_name='Supervisor')
+    dedicationW = models.PositiveIntegerField(default=0, verbose_name='Horas semanales')
+    years = models.PositiveIntegerField(default=0, verbose_name='Años en activo')
 
     activities = models.ManyToManyField(
         Activity, through="Dedication", related_name="activities_by_profesional"
+        ,verbose_name='Actividades'
     )
-    sectors = models.ManyToManyField(Sector, through="Secprof", related_name="sectors_on_works")
+    sectors = models.ManyToManyField(Sector, through="Secprof", related_name="sectors_on_works", verbose_name='Sectores')
     enviroments = models.ManyToManyField(
-        Enviroment, through="Envprof", related_name="enviroments_on_works"
+        Enviroment, through="Envprof", related_name="enviroments_on_works",verbose_name='Entornos'
     )
 
 
@@ -349,18 +454,17 @@ class Dedication(models.Model):
     profesional = models.ForeignKey(
         Profesional, on_delete=models.CASCADE, related_name="id_between_activity_profesional"
     )
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
-    percentatge = models.FloatField(default=0)
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, verbose_name='Actvidad')
+    percentatge = models.FloatField(default=0, verbose_name='Porcentage')
     pk = models.CompositePrimaryKey("profesional", "activity")
-
 
 class Envprof(models.Model):
     profesional = models.ForeignKey(Profesional, on_delete=models.CASCADE)
-    enviroment = models.ForeignKey(Enviroment, on_delete=models.CASCADE)
+    enviroment = models.ForeignKey(Enviroment, on_delete=models.CASCADE, verbose_name='Entorno')
     pk = models.CompositePrimaryKey("profesional", "enviroment")
 
 
 class Secprof(models.Model):
     profesional = models.ForeignKey(Profesional, on_delete=models.CASCADE)
-    sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
+    sector = models.ForeignKey(Sector, on_delete=models.CASCADE, verbose_name='Sector')
     pk = models.CompositePrimaryKey("profesional", "sector")

@@ -27,7 +27,7 @@
                     {% with request.resolver_match.url_name as url_name %}
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link {% if url_name == 'show_quizzes' %}active{% endif %}" href="{% url 'show_quizzes'%}">Formularios</a>
+                            <a class="nav-link {% if url_name == 'quizzes_list' %}active{% endif %}" href="{% url 'quizzes_list'%}">Formularios</a>
                         </li>
                         <li class="nav-item">
                             <a id="link_users" class="nav-link {% if url_name == 'users' %}active{% endif %}"  href="{% url 'users'%}" >Encuestados</a>
@@ -40,7 +40,7 @@
                     <div class='d-flex justify-content-end'>
                        <span>{{user.username}}|admin</span> 
                     </div>
-                    <button class='btn btn-secondary' onclick="{% url 'logout'%}">Cerrar sesión</button>
+                    <a class='btn btn-secondary' href="{% url 'logout'%}">Cerrar sesión</a>
                     {% endif%}
                 </div>
             </div>

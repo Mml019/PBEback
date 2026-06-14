@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}
+  Respuestas
+{% endblock %}
+{% block content %}
+  <h2>Respuestas 
+    {% if idQ%}{{idQ}}{% endif %}</h2>
+    {% if idQ and answers%}{{answers.0.question.question_in_each_quiz.first.file}}{% endif %}
+    
+    <div class="d inline-flex"></div>
+  <div id="users" class="table-responsive">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Encuestado</th>
+          <th>Nº Pregunta</th>
+          <th>Pregunta</th>
+          <th>Opciones</th>
+          <th>Acertada</th>
+          <th>Tiempo de respuesta(s)</th>
+          <th>Fecha de respuesta</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in answers %}
+          <tr>
+            <td>{{a.respondant.respondant}}</td> 
+            <td>{{a.question.numero}}</td>
+            <td>{{a.question.statement}}</td>
+            <td>{{a.answer.option}}</td>
+            {% comment %} {% if answer.is_correct %}
+                <td><i class="bi bi-check"></i></td>
+            {% else %}
+                <td><i class="bi bi-x"></i></td>
+            {% endif %} {% endcomment %}
+            <td>{{a.is_correct|yesno:"Sí,No"}}</td>
+            <td>{{a.time}}</td>
+            <td>{{a.date}}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td>Ninguna respuesta de momento</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+    {% include "includes/pagination.html" %}
+  {% endif %}
+
+  <div class="mt-3">
+  <form method="GET" id="export_answers" action="{% url 'answers_donwload' %}"> 
+      <input type="hidden" name="idQ" value="{{ idQ }}">
+  <input type="hidden" name="idRes" value="{{ idRes }}">
+    <button id="export_answers_btn" type="submit" class="btn btn-success">
+      Exportar respuestas
+    </button>
+  </form>
+</div>
+{% endblock %}
