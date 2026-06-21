@@ -22,4 +22,9 @@ class PaginationBlockMixin:
         context['end_page'] =end
         context['page_range'] = page_range
 
+        # if de pagination have other filters:
+        query = self.request.GET.copy()
+        query.pop('page', None)
+        context['query_params'] = query.urlencode()
+
         return context

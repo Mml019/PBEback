@@ -40,7 +40,10 @@
                     <div class='d-flex justify-content-end'>
                        <span>{{user.username}}|admin</span> 
                     </div>
-                    <a class='btn btn-secondary' href="{% url 'logout'%}">Cerrar sesión</a>
+                    <form action="{% url 'logout' %}" method="POST">
+                        {% csrf_token %}
+                        <button class="btn btn-secundary" type="submit">Cerrar sesión</button>
+                    </form>
                     {% endif%}
                 </div>
             </div>

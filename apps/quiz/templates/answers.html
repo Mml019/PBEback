@@ -3,11 +3,33 @@
   Respuestas
 {% endblock %}
 {% block content %}
-  <h2>Respuestas 
-    {% if idQ%}{{idQ}}{% endif %}</h2>
-    {% if idQ and answers%}{{answers.0.question.question_in_each_quiz.first.file}}{% endif %}
-    
-    <div class="d inline-flex"></div>
+  <h2>Respuestas {% if select_quiz_filter %}{{ select_quiz_filter }}{% endif %}</h2>
+  {% if select_quiz_filter and answers %}{{ answers.0.question.question_in_each_quiz.first.file }}{% endif %}
+  <!-- Form to select what answers from which respondant show -->
+  <div class="row d-inline-flex align-items-center">
+    <div class="col-8"> 
+      <form method="GET" class="d-inline-flex  justify-content-start align-items-start">
+        <select class="form-select m-2" name="idQ" id="select_quiz_filter" onchange="this.form.submit()">
+          <option value="">Cuestionario</option>
+          <option value="">Todos</option>
+          {% for idQ in quizzes_ids %}
+            <option value="{{ idQ }}" {% if select_quiz_filter == idQ|stringformat:"s" %} selected {% endif %}>{{ idQ }}</option>
+          {% endfor %}
+        </select>
+        <select class="form-select m-2" name="idRes" id="select_user_answ_filter" onchange="this.form.submit()">
+          <option value="">Usuario</option>
+          <option value="">Todos</option>
+          {% for id in respondants_ids %}
+            <option value="{{ id }}" {% if select_user_filter == id|stringformat:"s" %} selected {% endif %}>{{ id }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <div class="col-4">
+      <a class="btn btn-secondary" href="{% url 'answers_respondants'%}">Resumen por participante</a>
+      <a class="btn btn-secondary" href="{% url 'answers_respondants'%}">Resumen por formulario</a>
+    </div>
+  </div>
   <div id="users" class="table-responsive">
     <table class="table table-striped">
       <thead>
@@ -24,18 +46,22 @@
       <tbody>
         {% for a in answers %}
           <tr>
-            <td>{{a.respondant.respondant}}</td> 
-            <td>{{a.question.numero}}</td>
-            <td>{{a.question.statement}}</td>
-            <td>{{a.answer.option}}</td>
+            <td>{{ a.respondant.respondant }}</td>
+            <td>{{ a.question.numero }}</td>
+            <td>{{ a.question.statement }}</td>
+            <td>{{ a.answer.option }}</td>
             {% comment %} {% if answer.is_correct %}
-                <td><i class="bi bi-check"></i></td>
+              <td>
+                <i class="bi bi-check"></i>
+              </td>
             {% else %}
-                <td><i class="bi bi-x"></i></td>
+              <td>
+                <i class="bi bi-x"></i>
+              </td>
             {% endif %} {% endcomment %}
-            <td>{{a.is_correct|yesno:"Sí,No"}}</td>
-            <td>{{a.time}}</td>
-            <td>{{a.date}}</td>
+            <td>{{ a.is_correct|yesno:'Sí,No' }}</td>
+            <td>{{ a.time }}</td>
+            <td>{{ a.date }}</td>
           </tr>
         {% empty %}
           <tr>
@@ -47,16 +73,14 @@
   </div>
 
   {% if is_paginated %}
-    {% include "includes/pagination.html" %}
+    {% include 'includes/pagination.html' %}
   {% endif %}
 
   <div class="mt-3">
-  <form method="GET" id="export_answers" action="{% url 'answers_donwload' %}"> 
-      <input type="hidden" name="idQ" value="{{ idQ }}">
-  <input type="hidden" name="idRes" value="{{ idRes }}">
-    <button id="export_answers_btn" type="submit" class="btn btn-success">
-      Exportar respuestas
-    </button>
-  </form>
-</div>
+    <form method="GET" id="export_answers" action="{% url 'answers_donwload' %}">
+      <input type="hidden" name="idQ" value="{{ select_quiz_filter }}" />
+      <input type="hidden" name="idRes" value="{{ select_user_filter }}" />
+      <button id="export_answers_btn" type="submit" class="btn btn-success">Exportar respuestas</button>
+    </form>
+  </div>
 {% endblock %}

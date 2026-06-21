@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}
+  Respuestas resumen
+{% endblock %}
+{% block content %}
+  <h2>Respuestas resumen por encuestado</h2>
+  <form method="GET" class="d-inline-flex  justify-content-start align-items-start">
+     <select class="form-select m-2" name="idRes" id="select_user_answ_filter" onchange="this.form.submit()">
+          <option value="">Usuario</option>
+          <option value="">Todos</option>
+          {% for id in respondants_ids %}
+            <option value="{{ id }}" {% if select_user_filter == id|stringformat:"s" %} selected {% endif %}>{{ id }}</option>
+          {% endfor %}
+        </select>
+  </form>
+  <div id="users" class="table-responsive">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Encuestado</th>
+          <th>Cuetsionario ID</th>
+          <th>Cuetsionario</th>
+          <th>Preguntas respondidas</th>
+          <th>Correctas</th>
+          <th>Incorrectas</th>
+          <th>% Acierto</th>
+          <th>% Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in answers %}
+          <tr>
+            <td>{{ a.respondant }}</td>
+            <td>{{ a.quiz }}</td>
+            <td>{{ a.fileName }}</td>
+            <td>{{ a.total_questions }}</td>
+            <td>{{ a.total_corrects }}</td>
+            <td>{{ a.total_incorrects }}</td>
+            <td>{{ a.percentage_cor}}%</td>
+            <td>{{ a.percentage_incor}}%</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td>Ninguna respuesta de momento</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+    {% include 'includes/pagination.html' %}
+  {% endif %}
+
+  <div class="mt-3">
+    <form method="GET" id="export_answers" action="{% url 'export_respondants' %}">
+      <input type="hidden" name="idQ" value="{{ idQ }}" />
+      <input type="hidden" name="idRes" value="{{ idRes }}" />
+      <button id="export_answers_btn" type="submit" class="btn btn-success">Exportar respuestas</button>
+    </form>
+  </div>
+{% endblock %}

@@ -1,6 +1,6 @@
 window.addEventListener("load", function () {
+    // request to get quizzes
     // load images to quizzes but first get quizzes
-
     const images = document.querySelectorAll(".img-fluid");
     const deleteModal = document.getElementById('deleteModal'); // Replace with your modal's ID
 

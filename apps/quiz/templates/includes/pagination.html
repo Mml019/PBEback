@@ -3,12 +3,12 @@
     <ul class="pagination justify-content-center">
      {# Go to first page #}
       <li class="page-item {% if page_obj.number == 1 %}disabled{% endif %}">
-         <a class="page-link" href="?page=1">&laquo;</a>
+         <a class="page-link" href="?{% if query_params %}{{query_params}}&{% endif %}page=1">&laquo;</a>
        </li>
 
       {% if page_obj.has_previous %}
       <li class="page-item">
-        <a class="page-link" href="?page={{page_obj.previous_page_number}}" aria-label="Previous">
+        <a class="page-link" href="?{% if query_params %}{{query_params}}&{% endif %}page={{page_obj.previous_page_number}}" aria-label="Previous">
         <span aria-hidden="true">&lt;</span>
         </a>
       </li>
@@ -16,13 +16,13 @@
       
       {% for page in page_range%}
       <li class="page-item">
-        <a class="page-link {% if page == page_obj.number %}active{% endif %}" href="?page={{page}}">{{page}}</a>
+        <a class="page-link {% if page == page_obj.number %}active{% endif %}" href="?{% if query_params %}{{query_params}}&{% endif %}page={{page}}">{{page}}</a>
       </li>
       {% endfor %}
       
       {% if page_obj.has_next%}
       <li class="page-item">
-        <a class="page-link" href="?page={{page_obj.next_page_number}}" aria-label="Next">
+        <a class="page-link" href="?{% if query_params %}{{query_params}}&{% endif %}page={{page_obj.next_page_number}}" aria-label="Next">
           {% comment %} <i class="bi bi-chevron-right"></i> {% endcomment %}
           <span aria-hidden="true">&gt;</span>
         </a>
@@ -30,7 +30,7 @@
       {% endif %}
       {# Go to lastest page #}
       <li class="page-item {% if page_obj.number == num_pages %}disabled{% endif %}">
-         <a class="page-link" href="?page={{ num_pages }}">&raquo;</a>
+         <a class="page-link" href="?{% if query_params %}{{query_params}}&{% endif %}page={{ num_pages }}">&raquo;</a>
        </li>
     </ul>
   </nav> 

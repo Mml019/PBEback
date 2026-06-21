@@ -8,14 +8,15 @@ from django.urls import reverse_lazy
 import pandas as pd
 import io
 
-from django.db.models.functions import Concat
-from django.db.models import Q, F, Value, CharField, Count, Sum, Subquery, OuterRef
+from django.db.models.functions import Cast, Round
+from django.db.models import Q, F, FloatField, Count
 # from django.core.paginator import Paginator
 from django.views.generic import DetailView, DeleteView, ListView, UpdateView
 from .models import OptionQuestion as oqm
 from .models import *
 from api.serializers import *
 from .forms import LoginForm
+from django.contrib.auth.mixins import LoginRequiredMixin
 from .utils.mixins import PaginationBlockMixin
 from .utils.utils import normalizeFile, format, Opciones, export_as_csv_or_excel
 
@@ -53,7 +54,7 @@ class LoginView(View):
             if user is not None:
                 if user.is_active:
                     login(request, user)
-                    return render(request, "quizzes_list.html", {"user": user}, status=HTTP_200_OK)
+                    return redirect("quizzes")
                 else:
                     message = f"This user is not active, please contact with an admin."
                     form.add_error(None, error=message)
@@ -74,13 +75,17 @@ class LoginView(View):
                 return render(request, "login.html", {"form": form}, status=HTTP_404_NOT_FOUND)
         return render(request, "login.html", {"form": form}, status=HTTP_200_OK)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["user"] = self.user 
+        return context
+    
 
-class LogoutView(View):
+class LogoutView(LoginRequiredMixin, View):
     # logout
     def post(self, request):
         logout(request)
-        return redirect("login/")
-
+        return redirect("login")
 
 # ----------- QUIZ APP----------------
 class QuizDetailView(View):
@@ -101,7 +106,7 @@ class QuizDetailView(View):
 
         return render(request, "quiz/detailquiz.html", {"quiz": quiz, "questions": questions})
 
-class QuizListView(PaginationBlockMixin, ListView):
+class QuizListView(LoginRequiredMixin, PaginationBlockMixin, ListView):
     parser_classes = [MultiPartParser]
     model = Quiz
     template_name = "quizzes.html"
@@ -229,7 +234,7 @@ class QuizListView(PaginationBlockMixin, ListView):
             return render(request,'quizzes.html',{'quiz':quiz})
                
 
-class QuizDeleteView(DeleteView):
+class QuizDeleteView(LoginRequiredMixin, DeleteView):
     model = Quiz
     success_url = reverse_lazy("quizzes_list")
     pk_url_kwarg = "idQ"
@@ -241,7 +246,7 @@ class BaseQuestionMixin:
     pk_url_kwarg = "idP"
 
 # To see Question values
-class QuestionDetailView(BaseQuestionMixin, DetailView):
+class QuestionDetailView(LoginRequiredMixin, BaseQuestionMixin, DetailView):
     template_name = "question.html"
     context_object_name = "question"
     fields = [
@@ -260,7 +265,7 @@ class QuestionDetailView(BaseQuestionMixin, DetailView):
 
 
 # To modify a question
-class QuestionUpdateView(BaseQuestionMixin, UpdateView):
+class QuestionUpdateView(LoginRequiredMixin, BaseQuestionMixin, UpdateView):
     template_name = "question.html"
     context_object_name = "question"
     fields = [
@@ -273,7 +278,7 @@ class QuestionUpdateView(BaseQuestionMixin, UpdateView):
     ]
 
 # ------ SHOW ANSWERS ----------------
-class ShowAnswers(PaginationBlockMixin, ListView):
+class ShowAnswers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
@@ -283,9 +288,28 @@ class ShowAnswers(PaginationBlockMixin, ListView):
 
     def get_queryset(self):
         answers = Respuesta.respuesta_manager.answers_queryset()
-        return answers
+        #filter basic view
+        idQ = self.request.GET.get("idQ")
+        idRes = self.request.GET.get("idRes")
+    
+        if idQ:
+            answers = answers.filter(question__question_in_each_quiz=idQ)
 
-class ShowAnswersByQuiz(PaginationBlockMixin, ListView):
+        if idRes:
+            answers = answers.filter(respondant__respondant_id=uuid.UUID(idRes))
+        
+        return answers
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        context["select_quiz_filter"] = self.request.GET.get("idQ")
+        context["select_user_filter"] = self.request.GET.get("idRes")
+        context['quizzes_ids'] = Quiz.objects.values_list('idQ', flat=True).distinct()
+        context['respondants_ids'] = Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
+        return context
+
+class ShowAnswersFromQuiz(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
@@ -305,7 +329,7 @@ class ShowAnswersByQuiz(PaginationBlockMixin, ListView):
         return context
 
 '''Search one respondant selected into a filter from the table of answers'''
-class ShowAnswersFromRespondant(PaginationBlockMixin,ListView):
+class ShowAnswersFromRespondant(LoginRequiredMixin, PaginationBlockMixin,ListView):
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
@@ -324,7 +348,7 @@ class ShowAnswersFromRespondant(PaginationBlockMixin,ListView):
         return context
     
 '''Show all answers responded by each respondant, their success and quizzes answered'''
-class ShowAnswersByRespondant(PaginationBlockMixin,ListView):
+class ShowAnswersByRespondant(LoginRequiredMixin, PaginationBlockMixin,ListView):
     model = Respuesta
     template_name = "answers_users.html"
     context_object_name = "answers"
@@ -333,32 +357,56 @@ class ShowAnswersByRespondant(PaginationBlockMixin,ListView):
     def get_queryset(self):
         answers = Respuesta.respuesta_manager.answers_queryset()
         # groupby informtaion by respondant or must be reverse
-        answers_respondant = answers.annotate(
-            'respondant',
-            'question__question_in_each_quiz__idQ',
-            fileName='question__question_in_each_quiz__file',
-            total_questions=Count('question'),
-            total_corrects=Count(respuesta__is_correct=True),
-            total_incorrects=Count(respuesta__is_correct=False),
-        )  
+        answers_respondant = answers.by_respondant_summary()
+        idRes = self.request.GET.get('idRes')
+        if idRes:
+            answers_respondant = answers_respondant.by_user(uuid.UUID(idRes))
         return answers_respondant
     
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['respondants_ids'] = Respondant.objects.values_list('respondant', flat=True)
+        context['select_user_filter'] = self.request.GET.get('idRes')
+        return context
+    
+class ShowAnswersByQuiz(LoginRequiredMixin, PaginationBlockMixin,ListView):
+        model = Respuesta
+        template_name = "answers_quizzes.html"
+        context_object_name = "answers"
+        paginate_by = 20
+
+        def get_queryset(self):
+            answers = Respuesta.respuesta_manager.answers_queryset()
+            answers = answers.by_quiz_summary()
+            idQ = self.request.GET.get('idQ')
+            if idQ:
+                answers = answers.by_quiz(idQ)
+            return answers
+
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            context['quizzes_ids'] = Quiz.objects.values_list('idQ', flat=True)
+            context['select_quiz_filter'] = self.request.GET.get('idQ')
+            return context
+        
 ''' esport all answers by respondant'''
 def export_by_user_quiz(request):
-    answers = Respuesta.respuesta_manager.answer_queryset()
-    answers = answers.by_respondant_summary()
+    answers = Respuesta.respuesta_manager.answers_queryset()
+    answers = answers.by_quiz_summary()
+    idQ = request.GET.get('idQ')
+    if idQ:
+        answers = answers.by_quiz(idQ)
     df = pd.DataFrame(list(answers))
     df = format(df) 
-    response = export_as_csv_or_excel(request, df, 'answers_by_respondant')
+    response = export_as_csv_or_excel(request, df, 'answers_by_quiz')
     return response
-
 
 # Export answers as csv or excel
 def export_answers(request, **kwargs):
     answers = Respuesta.respuesta_manager.answers_queryset()
     idQ = request.GET.get('idQ') or kwargs.get("idQ") 
     idRes= request.GET.get('idRes') or kwargs.get("idQ") 
-    print(kwargs)
+    
     if idQ:
         answers = answers.by_quiz(idQ=idQ)
     
@@ -394,7 +442,7 @@ def query_respondants():
 
     return respondants
 
-class ShowUsers(PaginationBlockMixin, ListView):
+class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respondant
     paginate_by = 20
     template_name = "users.html"
@@ -402,11 +450,9 @@ class ShowUsers(PaginationBlockMixin, ListView):
 
     def get_queryset(self):
         respondants = query_respondants()
-    
         # select from users view to filter by user
         idRes=self.request.GET.get("idRes") 
-        print(idRes)
-        if idRes and idRes!='all':
+        if idRes:
             respondants = respondants.filter(respondant=idRes)
 
         for r in respondants:
@@ -449,7 +495,7 @@ class ShowUsers(PaginationBlockMixin, ListView):
         context["sectors"] = Sector.objects.all().distinct()
         context["enviroments"] = Enviroment.objects.all().distinct()
         context["profesionalareas"] = ProfesionalArea.objects.all().distinct()
-
+        context["respondants_ids"]= Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
         return context
 
 """ Export users in a csv o excel file with m2m data as stadistics
@@ -634,7 +680,6 @@ def export_users_complex(request):
     response = export_as_csv_or_excel(request=request, df=df, resultName='users_complex')
 
     return response
-
 
 """export users data as m2m binded with commas """
 def export_users_simple(request):

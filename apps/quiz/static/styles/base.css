@@ -63,4 +63,13 @@ tbody tr:hover td {
     background-color: cadetblue;
 }
 
-/* PaGINATION*/
+/* SELECTS */
+.form-select{
+    width: auto;
+    height: max-content;
+}
+
+/* .btn{
+    width: min-content;
+    height: min-content;
+} */

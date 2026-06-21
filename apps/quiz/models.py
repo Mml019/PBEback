@@ -9,8 +9,8 @@ from django.contrib.auth.models import (
 )
 from django.db import models
 
-from django.db.models.functions import Concat
-from django.db.models import Q, F, Value, CharField, Count, Sum, Subquery, OuterRef
+from django.db.models.functions import Round, Cast
+from django.db.models import Q, F,FloatField, Count, Subquery, OuterRef
 from django.contrib.auth.models import Group, Permission
 
 # from apps.quiz.utils.permissions import assign_permissions
@@ -175,7 +175,6 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
             user.set_password(password)
 
             user.save()
-            print(user)
 
             return user
 
@@ -319,7 +318,7 @@ class RespuestaQueryset(models.QuerySet):
         return self.filter(question__question_in_each_quiz=idQ)
     
     def by_user(self, idRes):
-        return self.filter(respondant=idRes)
+        return self.filter(respondant=(idRes))
 
     def export(self):
         answers = self.annotate(
@@ -376,14 +375,26 @@ class RespuestaQueryset(models.QuerySet):
         return answers
     
     def by_respondant_summary(self):
-        return self.annotate(
-            'respondant',
-            'question__question_in_each_quiz__idQ',
-            fileName='question__question_in_each_quiz__file',
+        return self.values('respondant',
+            quiz=F('question__question_in_each_quiz__idQ'),
+            fileName=F('question__question_in_each_quiz__file')).annotate(
             total_questions=Count('question'),
-            total_corrects=Count(respuesta__is_correct=True),
-            total_incorrects=Count(respuesta__is_correct=False),
-        )  
+            total_corrects=Count('is_correct', filter=Q(is_correct=True)),
+            total_incorrects=Count('is_correct', filter=Q(is_correct=False)),
+            percentage_cor=Round(Cast(F('total_corrects') * 100 / F('total_questions'), FloatField()), precision=2),
+            percentage_incor=Round(Cast(F('total_incorrects') * 100 / F('total_questions'), FloatField()), precision=2),
+        )
+     
+    def by_quiz_summary(self):
+        return self.values('question__question_in_each_quiz__idQ', 'question').annotate(
+            quiz=F('question__question_in_each_quiz__idQ'),
+            fileName = F('question__question_in_each_quiz__file'),
+            respondants=Count('respondant'),
+            total_corrects=Count('is_correct', filter=Q(is_correct=True)),
+            total_incorrects=Count('is_correct', filter=Q(is_correct=False)),
+            percentage_cor=Round(Cast(F('total_corrects') * 100 / Count('question'), FloatField())),
+            percentage_incor=Round(Cast(F('total_incorrects') * 100 / Count('question'), FloatField())),
+        ).order_by('quiz','-question')
     
 # The class name is in spanish cause django don't permit other
 class Respuesta(models.Model):
@@ -447,7 +458,6 @@ class Profesional(models.Model):
     enviroments = models.ManyToManyField(
         Enviroment, through="Envprof", related_name="enviroments_on_works",verbose_name='Entornos'
     )
-
 
 # Intermediate class between activity and profesional to show pecentatge of time that a profesional takes to do an activity
 class Dedication(models.Model):

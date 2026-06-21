@@ -45,30 +45,6 @@
 {% if is_paginated %}
     {% include "includes/pagination.html" %}
 {% endif %}
-{% comment "Pagination_extens" %}
-<div class="row">
-  <nav aria-label="Page navigation example">
-    <ul class="pagination justify-content-center">
-      {% if page_obj.has_previous %}
-      <li class="page-item">
-        <a class="page-link" href="?page={{page_obj.previous_page_number}}" aria-label="Previous">
-        <span aria-hidden="true">&laquo;</span>
-        </a>
-      </li>
-      {% endif %}
-      {% for page in page_obj.paginator.page_range %}
-      <li class="page-item"><a class="page-link {% if page == page_obj.number %}active{% endif %}" href="?page={{page}}">{{page}}</a></li>
-      {% endfor %}
-      {% if page_obj.has_next%}
-      <li class="page-item">
-        <a class="page-link" href="?page={{page_obj.next_page_number}}" aria-label="Next">
-          <span aria-hidden="true">&raquo;</span>
-        </a>
-      </li>
-      {% endif %}
-    </ul>
-  </nav>
-</div>  {% endcomment %}
 
 <!-- Button to show import modal selector of files -->
 <button type="button" id="import-but" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalImport">Importar cuestionario</button>
