@@ -48,19 +48,37 @@ body {
     align-content: space-around;
 }
 
-.nav-link:hover{
+.navbar-nav .nav-link:hover{
     opacity: 50%;
-    border-color: #e0e0e0;
+    border-color: #d5e2f1;
+    background-color: #d5e2f1;
 
 }
 
-.nav-link:active{
+.navbar-nav .nav-link.active{
     font-weight: bold;
+    background-color: #d5e2f1; 
 }
+
 
 /* TABLES */
 tbody tr:hover td {
     background-color: cadetblue;
+}
+
+th{
+    font-size: large;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+td{
+    font-size: medium;
+    white-space: normal;
+    overflow-wrap: break-word;
+    max-width: 300px;
 }
 
 /* SELECTS */

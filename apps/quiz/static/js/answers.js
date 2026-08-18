@@ -13,5 +13,3 @@ exportAnswerForm.addEventListener("submit", () => {
         Exportando...
     `;
 });
-
-const 

@@ -1,17 +1,18 @@
 import uuid
-from enum import Enum
+# from enum import Enum
 
 from django.contrib.auth.models import (
     AbstractBaseUser,
-    AbstractUser,
+    # AbstractUser,
     BaseUserManager,
     PermissionsMixin,
 )
 from django.db import models
-
-from django.db.models.functions import Round, Cast
-from django.db.models import Q, F,FloatField, Count, Subquery, OuterRef
-from django.contrib.auth.models import Group, Permission
+from django.db.models.functions import Round, Cast 
+from django.db.models import Q, F,FloatField, Count, Subquery, OuterRef, Exists
+# from django.contrib.auth.models import Group, Permission
+from django.contrib.postgres.aggregates import StringAgg, ArrayAgg
+from django.contrib.postgres.expressions import ArraySubquery
 
 # from apps.quiz.utils.permissions import assign_permissions
 
@@ -145,7 +146,6 @@ class Quiz(models.Model):
             f"ID: {str(self.idQ)} fecha creación: {self.fechaC} fecha actualización: {self.fechaA}"
         )
 
-
 class AppearanceQuiz(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
@@ -241,6 +241,64 @@ class AcademicLevel(models.Model):
     def __str__(self):
         return self.academic_lvl
     
+class RespondantQuerySet(models.QuerySet):
+
+    # Adds a filter only if respondants has answered or not a quiz, passing true or false by param
+    def answered_respondants(self, has_anwered=None):
+        return self.filter(answered=has_anwered)
+
+    def quizzes_add(self):
+       return self.annotate(
+                        quizzes=StringAgg('question__appearancequiz__quiz_id',
+                                        delimiter=',',
+                                        distinct=True)
+                    )
+    
+    def quizzes_by_respondant(self, respondants_subset):
+            respondants = (Respuesta.objects.values('respondant_id')
+            .annotate(quizzes = ArrayAgg('question__appearancequiz__quiz_id', distinct=True)))
+
+            if respondants_subset:
+               respondants = respondants.filter(respondant_id__in=respondants_subset)
+
+            return respondants #(<QuerySet [{'respondant_id': 20, 'quizzes': [5, 57, 61]}, ]>)
+    
+    def respondant_queryset(self):
+        # Subquery
+        respuestas_resp=Respuesta.objects.filter(respondant_id=OuterRef('pk'))
+
+        # Only show respondant that have answered some question
+        return (
+            self
+            .annotate(
+                answered=Exists(respuestas_resp),
+                # quizzes=ArraySubquery(
+                #     Respuesta.objects.filter(respondant_id=OuterRef('pk'))
+                #     .values('question__appearancequiz__quiz_id')
+                #     .distinct()
+                # )
+                quizzes=Respuesta.objects.filter(respondant_id=OuterRef('pk'))
+                    .values('respondant_id')
+                    .annotate(quizzes=ArrayAgg('question__appearancequiz__quiz_id', distinct=True))
+                    .values('quizzes') # to only return the array value only one register for the subconsult
+            )
+            .select_related('profesional', 
+                            'academic_level',
+                            'academic_level__year',
+                            )
+            .prefetch_related(
+                # from respondant
+                'profarea',
+                'satisfation',
+                # from profesional
+                # 'profesional__activities',
+                'profesional__sectors',
+                'profesional__enviroments',
+                # Dedication from each activity
+                'profesional__id_between_activity_profesional',
+                )
+            ).order_by('pk')
+  
 class Respondant(models.Model):
 
     class Sex(models.TextChoices):
@@ -268,7 +326,7 @@ class Respondant(models.Model):
     # if i change the name to reply or answer don't works but Respuesta sí.
     question = models.ManyToManyField(
         Question, through="Respuesta", related_name="respondant_answer_to_question"
-        ,verbose_name='Preguntas'
+        ,verbose_name='Cuestionarios'
     )
     # profarea =    models.ManyToManyField(ProfesionalArea, through='SatisfationGrade', related_name='profesional_area_user')
     profarea = models.ManyToManyField(ProfesionalArea, verbose_name='Áreas Profesionales')
@@ -277,6 +335,8 @@ class Respondant(models.Model):
         ,verbose_name='Satisfacciones'
     )
 
+    objects = models.Manager() # default manager
+    respondant_manager = RespondantQuerySet.as_manager()
     # def __str__(self):
     #     return (f"ID: {self.respondant.id}"  
     #         f"Edad: {str(self.age)}" 
@@ -313,12 +373,19 @@ class RespuestaQueryset(models.QuerySet):
             )
         )
         return answers
-
-    def by_quiz(self, idQ):
-        return self.filter(question__question_in_each_quiz=idQ)
     
+    """show answers filtered by quiz setled per param, idQ"""
+    def by_quiz(self, idQ):
+        return self.filter(question__question_in_each_quiz__idQ=idQ)
+    
+    """show answers filtered by respondant setled per param, idRes(uuid)"""
     def by_user(self, idRes):
         return self.filter(respondant=(idRes))
+    
+    """show answers filtered between a reange of dates indicated per param as
+        inital and final date"""
+    def by_dates(self, iniDate, finalDate):
+        return self.filter(date__range=(iniDate, finalDate))
 
     def export(self):
         answers = self.annotate(
@@ -373,9 +440,10 @@ class RespuestaQueryset(models.QuerySet):
             'fecha',
         )
         return answers
-    
+            
+    """show answers per respondant adding the rate of corrects and incorrects answers and quiz""" 
     def by_respondant_summary(self):
-        return self.values('respondant',
+        return self.values('respondant', uuid_res=F('respondant__respondant_id'),
             quiz=F('question__question_in_each_quiz__idQ'),
             fileName=F('question__question_in_each_quiz__file')).annotate(
             total_questions=Count('question'),
@@ -383,10 +451,16 @@ class RespuestaQueryset(models.QuerySet):
             total_incorrects=Count('is_correct', filter=Q(is_correct=False)),
             percentage_cor=Round(Cast(F('total_corrects') * 100 / F('total_questions'), FloatField()), precision=2),
             percentage_incor=Round(Cast(F('total_incorrects') * 100 / F('total_questions'), FloatField()), precision=2),
-        )
-     
+        ).order_by('quiz')
+    
+    """show answers per quiz adding the rate of corrects and incorrects answers per respondant""" 
     def by_quiz_summary(self):
-        return self.values('question__question_in_each_quiz__idQ', 'question').annotate(
+        return self.values(
+            'question',
+            q_statement=F('question__statement'),
+            q_option=F('question__question_values__option'),
+            cuestionario=F('question__question_in_each_quiz__idQ')
+            ).annotate(
             quiz=F('question__question_in_each_quiz__idQ'),
             fileName = F('question__question_in_each_quiz__file'),
             respondants=Count('respondant'),
@@ -394,7 +468,7 @@ class RespuestaQueryset(models.QuerySet):
             total_incorrects=Count('is_correct', filter=Q(is_correct=False)),
             percentage_cor=Round(Cast(F('total_corrects') * 100 / Count('question'), FloatField())),
             percentage_incor=Round(Cast(F('total_incorrects') * 100 / Count('question'), FloatField())),
-        ).order_by('quiz','-question')
+        ).order_by('quiz','question')
     
 # The class name is in spanish cause django don't permit other
 class Respuesta(models.Model):

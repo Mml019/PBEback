@@ -27,7 +27,7 @@
     </div>
     <div class="col-4">
       <a class="btn btn-secondary" href="{% url 'answers_respondants'%}">Resumen por participante</a>
-      <a class="btn btn-secondary" href="{% url 'answers_respondants'%}">Resumen por formulario</a>
+      <a class="btn btn-secondary" href="{% url 'answers_quizzes'%}">Resumen por formulario</a>
     </div>
   </div>
   <div id="users" class="table-responsive">
@@ -46,7 +46,7 @@
       <tbody>
         {% for a in answers %}
           <tr>
-            <td>{{ a.respondant.respondant }}</td>
+            <td>{{ a.respondant_id }}</td>
             <td>{{ a.question.numero }}</td>
             <td>{{ a.question.statement }}</td>
             <td>{{ a.answer.option }}</td>

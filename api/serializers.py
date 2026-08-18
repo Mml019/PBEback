@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, time
+from datetime import datetime as datetime, time as datetime_time
 
 from apps.quiz.models import *
 from rest_framework import serializers
@@ -221,7 +221,7 @@ class RespuestaSerializer(serializers.ModelSerializer):
         seconds = seconds % 60
 
         # Create object 'time'
-        value = time(hour=hours, minute=minutes, second=seconds)
+        value = datetime_time(hour=hours, minute=minutes, second=seconds)
         return value
 
     class Meta:

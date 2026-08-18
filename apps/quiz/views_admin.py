@@ -1,4 +1,4 @@
-from datetime import time
+# from datetime import time as datetime_time
 from django.shortcuts import redirect, render, get_object_or_404, get_list_or_404
 from django import forms
 from django.urls import reverse_lazy
@@ -7,7 +7,8 @@ from django.urls import reverse_lazy
 # import openpyxl as xl
 import pandas as pd
 import io
-
+import time as time
+import datetime as datetime
 from django.db.models.functions import Cast, Round
 from django.db.models import Q, F, FloatField, Count
 # from django.core.paginator import Paginator
@@ -112,7 +113,7 @@ class QuizListView(LoginRequiredMixin, PaginationBlockMixin, ListView):
     template_name = "quizzes.html"
     context_object_name = "quizzes"
     paginate_by = 3
-
+    ordering = ["idQ"]
 
     " Import in excel or csv a quiz with its questions"
     def post(self, request):
@@ -195,7 +196,7 @@ class QuizListView(LoginRequiredMixin, PaginationBlockMixin, ListView):
                         defaults={
                             'numero':i + 1,
                             'statement':row["enunciado"],
-                            'time':time(0, 0, 30),
+                            'time':datetime.time(0, 0, 30),
                             'difficult_level':row["dificultad"],
                             'version':0,
                             'idD':dimensionN,
@@ -231,7 +232,7 @@ class QuizListView(LoginRequiredMixin, PaginationBlockMixin, ListView):
                     except ValidationError as ve:
                         error = {"error": f" Corrija la opción {valor_op_mapeado} del campo de opciones de la fila {i+1}"}
                         return render(request, 'quizzes.html', {'error':error})
-            return render(request,'quizzes.html',{'quiz':quiz})
+            return redirect("quizzes")
                
 
 class QuizDeleteView(LoginRequiredMixin, DeleteView):
@@ -303,8 +304,8 @@ class ShowAnswers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        context["select_quiz_filter"] = self.request.GET.get("idQ")
-        context["select_user_filter"] = self.request.GET.get("idRes")
+        context["select_quiz_filter"] = self.request.GET.get("idQ") or ""
+        context["select_user_filter"] = self.request.GET.get("idRes") or ""
         context['quizzes_ids'] = Quiz.objects.values_list('idQ', flat=True).distinct()
         context['respondants_ids'] = Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
         return context
@@ -346,7 +347,16 @@ class ShowAnswersFromRespondant(LoginRequiredMixin, PaginationBlockMixin,ListVie
         context = super().get_context_data(**kwargs)
         context["idRes"] = self.kwargs["idRes"]
         return context
-    
+
+def get_answered_by_respondant(request):
+    answers = Respuesta.respuesta_manager.answers_queryset()
+    # groupby informtaion by respondant or must be reverse
+    answers_respondant = answers.by_respondant_summary()
+    idRes = request.GET.get('idRes')
+    if idRes:
+        answers_respondant = answers_respondant.by_user(uuid.UUID(idRes))
+    return answers_respondant       
+  
 '''Show all answers responded by each respondant, their success and quizzes answered'''
 class ShowAnswersByRespondant(LoginRequiredMixin, PaginationBlockMixin,ListView):
     model = Respuesta
@@ -355,20 +365,22 @@ class ShowAnswersByRespondant(LoginRequiredMixin, PaginationBlockMixin,ListView)
     paginate_by = 20
 
     def get_queryset(self):
-        answers = Respuesta.respuesta_manager.answers_queryset()
-        # groupby informtaion by respondant or must be reverse
-        answers_respondant = answers.by_respondant_summary()
-        idRes = self.request.GET.get('idRes')
-        if idRes:
-            answers_respondant = answers_respondant.by_user(uuid.UUID(idRes))
-        return answers_respondant
+        return get_answered_by_respondant(self.request)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['respondants_ids'] = Respondant.objects.values_list('respondant', flat=True)
-        context['select_user_filter'] = self.request.GET.get('idRes')
+        context['respondants_ids'] =  Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
+        context['select_user_filter'] = self.request.GET.get('idRes') or ""
         return context
     
+def get_answered_by_quiz(request):
+    answers = Respuesta.respuesta_manager.answers_queryset()
+    answers = answers.by_quiz_summary()
+    idQ = request.GET.get('idQ')
+    if idQ:
+        answers = answers.by_quiz(idQ)
+    return answers
+
 class ShowAnswersByQuiz(LoginRequiredMixin, PaginationBlockMixin,ListView):
         model = Respuesta
         template_name = "answers_quizzes.html"
@@ -376,36 +388,52 @@ class ShowAnswersByQuiz(LoginRequiredMixin, PaginationBlockMixin,ListView):
         paginate_by = 20
 
         def get_queryset(self):
-            answers = Respuesta.respuesta_manager.answers_queryset()
-            answers = answers.by_quiz_summary()
-            idQ = self.request.GET.get('idQ')
-            if idQ:
-                answers = answers.by_quiz(idQ)
-            return answers
+            return get_answered_by_quiz(self.request)
+            # answers = Respuesta.respuesta_manager.answers_queryset()
+            # answers = answers.by_quiz_summary()
+            # idQ = self.request.GET.get('idQ')
+            # if idQ:
+            #     answers = answers.by_quiz(idQ)
+            # return answers
 
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
             context['quizzes_ids'] = Quiz.objects.values_list('idQ', flat=True)
-            context['select_quiz_filter'] = self.request.GET.get('idQ')
+            context['select_quiz_filter'] = self.request.GET.get('idQ') or ""
             return context
         
-''' esport all answers by respondant'''
-def export_by_user_quiz(request):
-    answers = Respuesta.respuesta_manager.answers_queryset()
-    answers = answers.by_quiz_summary()
-    idQ = request.GET.get('idQ')
-    if idQ:
-        answers = answers.by_quiz(idQ)
+''' esport all answers by quiz summary'''
+def export_by_quiz_summary(request):
+    answers = get_answered_by_quiz(request)
+    # answers = Respuesta.respuesta_manager.answers_queryset()
+    # answers = answers.by_quiz_summary()
+    # idQ = request.GET.get('idQ')
+    
+    # if idQ:
+    #     answers = answers.by_quiz(idQ)
     df = pd.DataFrame(list(answers))
     df = format(df) 
     response = export_as_csv_or_excel(request, df, 'answers_by_quiz')
+    return response
+
+def export_by_user_summary(request):
+    answers = get_answered_by_respondant(request)
+    # answers = Respuesta.respuesta_manager.answers_queryset()
+    # answers = answers.by_respondant_summary()
+    # idRes = request.GET.get('idRes')
+    
+    # if idRes:
+    #     answers = answers.by_user(uuid.UUID(idRes))
+    df = pd.DataFrame(list(answers))
+    df = format(df) 
+    response = export_as_csv_or_excel(request, df, 'answers_by_respondant')
     return response
 
 # Export answers as csv or excel
 def export_answers(request, **kwargs):
     answers = Respuesta.respuesta_manager.answers_queryset()
     idQ = request.GET.get('idQ') or kwargs.get("idQ") 
-    idRes= request.GET.get('idRes') or kwargs.get("idQ") 
+    idRes= request.GET.get('idRes') or kwargs.get("idRes") 
     
     if idQ:
         answers = answers.by_quiz(idQ=idQ)
@@ -416,32 +444,10 @@ def export_answers(request, **kwargs):
     answers = answers.export()
     df = pd.DataFrame(list(answers))
     df = format(df)
+
     response = export_as_csv_or_excel(request=request, df=df, resultName='answers')
     return response
 # ----------------- USERS -----------------
-def query_respondants():
-    # Only show respondant that have answered some question
-    respondants = (
-        Respondant.objects.filter(respuesta__isnull=False)
-        .distinct()
-        .select_related("profesional")
-        .prefetch_related(
-            # if i want quizzes distinct i have to go
-            "question__respondant_answer_to_question",
-            # from respondant
-            "profarea",
-            "satisfation",
-            # from profesional
-            "profesional__activities",
-            "profesional__sectors",
-            "profesional__enviroments",
-            # Dedication from each activity
-            "profesional__id_between_activity_profesional",
-        )
-    )
-
-    return respondants
-
 class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respondant
     paginate_by = 20
@@ -449,53 +455,46 @@ class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     context_object_name = "respondants"
 
     def get_queryset(self):
-        respondants = query_respondants()
+        respondants = Respondant.respondant_manager.respondant_queryset()
+
         # select from users view to filter by user
         idRes=self.request.GET.get("idRes") 
+        # print(idRes)
         if idRes:
-            respondants = respondants.filter(respondant=idRes)
-
-        for r in respondants:
-
-            # Plus info if it is profesional
-            if hasattr(r, "profesional"):
-                r.profesional_res_set = set(r.profarea.all())
-                # r.activities_res_set = (r.profesional.activities.all())
-                r.sector_res_set = set(r.profesional.sectors.all())
-                r.enviroment_res_set = set(r.profesional.enviroments.all())
-
-                r.activities_res_set = []
-                activities = Activity.objects.all().distinct()
-                for act in activities:
-                    if act.idAct in r.profesional.id_between_activity_profesional.values_list(
-                        "activity", flat=True
-                    ):
-                        r.activities_res_set.append(
-                            r.profesional.id_between_activity_profesional.get(
-                                activity=act.idAct
-                            ).percentatge
-                        )
-                    else:
-                        r.activities_res_set.append(0)
-
-            # GET all distinct quizzes
-            r.quizzes = (
-                Quiz.objects.filter(question__respondant_answer_to_question=r)
-                .distinct()
-                .values_list("idQ", flat=True)
-            )
-
+            respondants = respondants.filter(pk=idRes)
+        
+        # has answered param if filter is true or false if you want to see respondants ids 
+        # that has answered a quiz o not
+        has_answered = self.request.GET.get("has_aswered") 
+        if has_answered: #if not None filter query
+            respondants = respondants.answered_respondants(has_answered)
+               
         return respondants
 
     """Return all objects that can be m2m to put in table's header"""
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        query_res = self.get_queryset()
+        
+        context["activities"] =Activity.objects.all().distinct() #query_res.values('profesional__activities')
+        context["sectors"] = Sector.objects.all().distinct() #query_res.values('profesional__sectors')
+        context["enviroments"] = Enviroment.objects.all().distinct() #query_res.values('profesional__enviroments')#
+        context["profesionalareas"] = ProfesionalArea.objects.all().distinct()#query_res.values('profarea')#
+        context["respondants_ids"]= query_res.values_list('pk', flat=True)
+        # Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)                      
+        context["select_user"] = self.request.GET.get("idRes") or ""
+        context["select_answered"] = self.request.GET.get("has_answered") or ""                
 
-        context["activities"] = Activity.objects.all().distinct()
-        context["sectors"] = Sector.objects.all().distinct()
-        context["enviroments"] = Enviroment.objects.all().distinct()
-        context["profesionalareas"] = ProfesionalArea.objects.all().distinct()
-        context["respondants_ids"]= Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
+        for r in context["respondants"]:
+            if hasattr(r, "profesional"):
+                
+                r.dedications={}
+                for a in context['activities']:
+                    r.dedications[a.idAct] = 0
+
+                for d in r.profesional.id_between_activity_profesional.all():
+                       r.dedications[d.activity_id] = d.percentatge   
+
         return context
 
 """ Export users in a csv o excel file with m2m data as stadistics
@@ -511,7 +510,8 @@ def export_users(request):
 # Export respondants to excel
 def export_users_complex(request):
     # export simple values
-    respondants = query_respondants()
+    respondants = Respondant.respondant_manager.respondant_queryset()
+
     # first build columns their headers
     columns = []
     rfields = Respondant._meta.get_fields()
@@ -595,20 +595,23 @@ def export_users_complex(request):
                 # rest of fields
                 data[rfield.verbose_name] = getattr(r, rfield.name)
 
-        # Quizzes
-        r.quizzes = (
-            Quiz.objects.filter(question__respondant_answer_to_question=r)
-            .distinct()
-            .values_list("idQ", flat=True)
-        )
+        # # Quizzes
+        # r.quizzes = (
+        #     Quiz.objects.filter(question__respondant_answer_to_question=r)
+        #     .distinct()
+        #     .values_list("idQ", flat=True)
+        # )
 
-        if "Preguntas" in columns:
-            columns[columns.index("Preguntas")] = "Quizzes"
+        # if "Preguntas" in columns:
+        #     columns[columns.index("Preguntas")] = "Quizzes"
 
-        data["Quizzes"] = ",".join(str(q) for q in r.quizzes)
+        data["Cuestionarios"] = r.quizzes #",".join(str(q) for q in r.quizzes)
 
-        # Speciality
-        data["Detalle"] = r.academic_level.description
+        if r.academic_level:
+            # Speciality
+            data["Detalle"] = r.academic_level.description
+        else:
+             data["Detalle"]="Ninguno"
 
         # M2M
         # data['Áreas Profesionales'] = ",".join(a.profarea for a in r.profarea.all())
@@ -662,15 +665,20 @@ def export_users_complex(request):
             )
 
             # activities
-            for act in Activity.objects.all().distinct():
-                if act.idAct in r.profesional.id_between_activity_profesional.values_list(
-                    "activity", flat=True
-                ):
-                    data[act.activity] = r.profesional.id_between_activity_profesional.get(
-                        activity=act.idAct
-                    ).percentatge
-                else:
-                    data[act.activity] = 0
+            # for act in Activity.objects.all().distinct():
+            #     if act.idAct in r.profesional.id_between_activity_profesional.values_list(
+            #         "activity", flat=True
+            #     ):
+            #         data[act.activity] = r.profesional.id_between_activity_profesional.get(
+            #             activity=act.idAct
+            #         ).percentatge
+            #     else:
+            #         data[act.activity] = 0
+            for a in activities:
+                data[act.activity] = 0
+
+            for d in r.profesional.id_between_activity_profesional.all():
+                    data[act.activity] = d.percentatge 
 
         # Add each respondant info
         rows.append(data)
@@ -683,7 +691,7 @@ def export_users_complex(request):
 
 """export users data as m2m binded with commas """
 def export_users_simple(request):
-    respondants = query_respondants()
+    respondants = Respondant.respondant_manager.respondant_queryset()
 
     # first build columns their headers
     columns = []
@@ -744,14 +752,18 @@ def export_users_simple(request):
             .distinct()
             .values_list("idQ", flat=True)
         )
-
+        
         if "Preguntas" in columns:
             columns[columns.index("Preguntas")] = "Quizzes"
 
         data["Quizzes"] = ",".join(str(q) for q in r.quizzes)
 
         # Speciality
-        data["Detalle"] = r.academic_level.description
+        if r.academic_level:
+            # Speciality
+            data["Detalle"] = r.academic_level.description
+        else:
+            data["Detalle"]="Ninguno"
 
         # M2M
         data["Áreas Profesionales"] = ",".join(a.profarea for a in r.profarea.all())
@@ -791,4 +803,22 @@ def export_users_simple(request):
     df = pd.DataFrame(rows, columns=columns)
     response = export_as_csv_or_excel(request=request, df=df, resultName='users_simple')
    
+    return response
+
+def export_prueba(request):
+    query = Respondant.respondant_manager.all()
+
+    rows = []
+    
+    for r in query:
+        data={}    
+        if(hasattr('respondant')):
+            data.append(Profesional.objects.get(profesional=r).values())
+
+    rows.append(data)
+
+    # Generate dataframe with the columns as header and rows as user infomation
+    df = pd.DataFrame(rows)
+    response = export_as_csv_or_excel(request=request, df=df, resultName='users_complex')
+
     return response

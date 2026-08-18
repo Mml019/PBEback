@@ -17,6 +17,7 @@
     <table class="table table-striped">
       <thead>
         <tr>
+          <th>Encuestado ID</th>
           <th>Encuestado</th>
           <th>Cuetsionario ID</th>
           <th>Cuetsionario</th>
@@ -29,8 +30,8 @@
       </thead>
       <tbody>
         {% for a in answers %}
-          <tr>
-            <td>{{ a.respondant }}</td>
+            <td>{{ a.respondant}}</td>
+            <td>{{ a.uuid_res}}</td>
             <td>{{ a.quiz }}</td>
             <td>{{ a.fileName }}</td>
             <td>{{ a.total_questions }}</td>
@@ -54,8 +55,7 @@
 
   <div class="mt-3">
     <form method="GET" id="export_answers" action="{% url 'export_respondants' %}">
-      <input type="hidden" name="idQ" value="{{ idQ }}" />
-      <input type="hidden" name="idRes" value="{{ idRes }}" />
+      <input type="hidden" name="idRes" value="{{ select_user_filter }}" />
       <button id="export_answers_btn" type="submit" class="btn btn-success">Exportar respuestas</button>
     </form>
   </div>
