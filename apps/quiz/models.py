@@ -111,9 +111,7 @@ class OptionQuestion(models.Model):
             return (
                 super()
                 .get_queryset()
-                .values("idP")
                 .exclude(Q(motive__isnull=True) | Q(motive="") | Q(motive=" "))
-                .values("idP", "idO", "motive")
             )
         
     idP = models.ForeignKey(
@@ -244,24 +242,25 @@ class AcademicLevel(models.Model):
 class RespondantQuerySet(models.QuerySet):
 
     # Adds a filter only if respondants has answered or not a quiz, passing true or false by param
-    def answered_respondants(self, has_anwered=None):
-        return self.filter(answered=has_anwered)
-
-    def quizzes_add(self):
-       return self.annotate(
-                        quizzes=StringAgg('question__appearancequiz__quiz_id',
-                                        delimiter=',',
-                                        distinct=True)
-                    )
+    def answered_respondants(self, has_answered=None):
+        return self.filter(answered=has_answered)
     
-    def quizzes_by_respondant(self, respondants_subset):
-            respondants = (Respuesta.objects.values('respondant_id')
-            .annotate(quizzes = ArrayAgg('question__appearancequiz__quiz_id', distinct=True)))
+    # # Agreggates quizzes by respondant joined by comma
+    # def quizzes_add(self):
+    #    return self.annotate(
+    #                     quizzes=StringAgg('question__appearancequiz__quiz_id',
+    #                                     delimiter=',',
+    #                                     distinct=True)
+    #                 )
+    # # 
+    # def quizzes_by_respondant(self, respondants_subset):
+    #         respondants = (Respuesta.objects.values('respondant_id')
+    #         .annotate(quizzes = ArrayAgg('question__appearancequiz__quiz_id', distinct=True)))
 
-            if respondants_subset:
-               respondants = respondants.filter(respondant_id__in=respondants_subset)
+    #         if respondants_subset:
+    #            respondants = respondants.filter(respondant_id__in=respondants_subset)
 
-            return respondants #(<QuerySet [{'respondant_id': 20, 'quizzes': [5, 57, 61]}, ]>)
+    #         return respondants #(<QuerySet [{'respondant_id': 20, 'quizzes': [5, 57, 61]}, ]>)
     
     def respondant_queryset(self):
         # Subquery
@@ -272,11 +271,6 @@ class RespondantQuerySet(models.QuerySet):
             self
             .annotate(
                 answered=Exists(respuestas_resp),
-                # quizzes=ArraySubquery(
-                #     Respuesta.objects.filter(respondant_id=OuterRef('pk'))
-                #     .values('question__appearancequiz__quiz_id')
-                #     .distinct()
-                # )
                 quizzes=Respuesta.objects.filter(respondant_id=OuterRef('pk'))
                     .values('respondant_id')
                     .annotate(quizzes=ArrayAgg('question__appearancequiz__quiz_id', distinct=True))
@@ -369,7 +363,8 @@ class RespuestaQueryset(models.QuerySet):
             )
             .prefetch_related(
                 "question__question_in_each_quiz",
-                "question__question_values"
+                # "question__question_values",
+                # "question__respondant_answer_to_question"
             )
         )
         return answers
@@ -378,9 +373,9 @@ class RespuestaQueryset(models.QuerySet):
     def by_quiz(self, idQ):
         return self.filter(question__question_in_each_quiz__idQ=idQ)
     
-    """show answers filtered by respondant setled per param, idRes(uuid)"""
+    """show answers filtered by respondant pk not UUID setled per param, idRes(uuid)"""
     def by_user(self, idRes):
-        return self.filter(respondant=(idRes))
+        return self.filter(respondant_id=(idRes))
     
     """show answers filtered between a reange of dates indicated per param as
         inital and final date"""
@@ -390,54 +385,31 @@ class RespuestaQueryset(models.QuerySet):
     def export(self):
         answers = self.annotate(
             dimension = F('question__idD__orden'),
-            # dimension=Concat(
-            #     F('question__idD__orden'),
-            #     Value('.'),
-            #     F('question__idD__dimension'),
-            #     output_field=CharField()
-            # ),
             area_interes=F('question__idA__orden'),
-            # area_interes=Concat(
-            #     F('question__idA__orden'),
-            #     Value('.'),
-            #     F('question__idA__int_area'),
-            #     output_field=CharField()
-            # ),
             contenido_nuclear=F('question__idC__core_cont'),
             enunciado=F('question__statement'),
             dificultad=F('question__difficult_level'),
             respuesta=F('answer__option'),
             es_correcta=F('is_correct'),
-            motivo = Subquery(OptionQuestion.objects.filter(
-                idP=OuterRef('question'),
-                motive__isnull=False).exclude(
-                    Q(motive__isnull=True)|
-                    Q(motive="") |
-                    Q(motive=" "))
-                .values('motive')),
-            solucion=Subquery(OptionQuestion.objects.filter(
-                idP=OuterRef('question'),
-                motive__isnull=False).exclude(
-                    Q(motive__isnull=True)|
-                    Q(motive="") |
-                    Q(motive=" "))
-                .values('idO__option')),
             tiempo_de_respuesta=F('time'),
             fecha=F('date')
+            ).annotate(
+                motivo = Subquery(OptionQuestion.solutions.filter(idP=OuterRef('question')).values('motive')),
+                solucion=Subquery(OptionQuestion.solutions.filter(idP=OuterRef('question')).values('idO__option'))
             ).values(
-            'respondant',
-            'question',
-            'dimension',
-            'area_interes',
-            'contenido_nuclear',
-            'enunciado',
-            'dificultad',
-            'respuesta',
-            'es_correcta',
-            'solucion',
-            'motivo',
-            'tiempo_de_respuesta',
-            'fecha',
+                'respondant',
+                'question',
+                'dimension',
+                'area_interes',
+                'contenido_nuclear',
+                'enunciado',
+                'dificultad',
+                'respuesta',
+                'es_correcta',
+                'solucion',
+                'motivo',
+                'tiempo_de_respuesta',
+                'fecha',
         )
         return answers
             
@@ -457,18 +429,22 @@ class RespuestaQueryset(models.QuerySet):
     def by_quiz_summary(self):
         return self.values(
             'question',
-            q_statement=F('question__statement'),
-            q_option=F('question__question_values__option'),
-            cuestionario=F('question__question_in_each_quiz__idQ')
+            # q_option=F('question__question_values__option'),
+                quiz=F('question__question_in_each_quiz__idQ'),
             ).annotate(
-            quiz=F('question__question_in_each_quiz__idQ'),
-            fileName = F('question__question_in_each_quiz__file'),
-            respondants=Count('respondant'),
-            total_corrects=Count('is_correct', filter=Q(is_correct=True)),
-            total_incorrects=Count('is_correct', filter=Q(is_correct=False)),
-            percentage_cor=Round(Cast(F('total_corrects') * 100 / Count('question'), FloatField())),
-            percentage_incor=Round(Cast(F('total_incorrects') * 100 / Count('question'), FloatField())),
-        ).order_by('quiz','question')
+                difficult=F('question__difficult_level'),
+                q_statement=F('question__statement'),
+                respondants=Count('respondant'),
+                total_corrects=Count('is_correct', filter=Q(is_correct=True)),
+                total_incorrects=Count('is_correct', filter=Q(is_correct=False)),
+                percentage_cor=Round(Cast(F('total_corrects') * 100 / Count('question'), FloatField())),
+                percentage_incor=Round(Cast(F('total_incorrects') * 100 / Count('question'), FloatField()))
+            ).annotate(
+                # quiz=F('question__question_in_each_quiz__idQ'),
+                fileName = F('question__question_in_each_quiz__file'),
+            ).annotate(
+                solution=OptionQuestion.solutions.filter(idP=OuterRef('question')).values('idO__option')
+            ).order_by('quiz','question')
     
 # The class name is in spanish cause django don't permit other
 class Respuesta(models.Model):

@@ -126,11 +126,11 @@ def mapping(op):
 def export_as_csv_or_excel(request, df, resultName):
     format = request.GET.get('format')
     if format == 'excel':
-        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' )
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{resultName}.xlsx"'
-        df.to_excel(response, index=False)
+        df.to_excel(response, index=False, engine='openpyxl')
     else:  # CSV por defecto
-        response = HttpResponse(content_type='text/csv' )
+        response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{resultName}.csv"'
         df.to_csv(response, index=False, sep=';', encoding='utf-8-sig')
     return response

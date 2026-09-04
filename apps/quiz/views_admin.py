@@ -2,6 +2,7 @@
 from django.shortcuts import redirect, render, get_object_or_404, get_list_or_404
 from django import forms
 from django.urls import reverse_lazy
+from django.utils import timezone
 
 # imports to Normalize and clean data
 # import openpyxl as xl
@@ -283,38 +284,69 @@ class ShowAnswers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
-    paginate_by = 20
+    # paginate_by = 20
     # if you want personalize page range by default 5
     # block_page_size = 10 
 
     def get_queryset(self):
         answers = Respuesta.respuesta_manager.answers_queryset()
         #filter basic view
-        idQ = self.request.GET.get("idQ")
-        idRes = self.request.GET.get("idRes")
-    
+        idQ = self.request.GET.get("idQ") or None
+        idRes = self.request.GET.get("idRes") or None
+        # initDate = self.request.GET.get("initDate") or None
+        # finalDate = self.request.GET.get("finalDate") or None
+        # currentDate = timezone.now().date()
         if idQ:
             answers = answers.filter(question__question_in_each_quiz=idQ)
 
         if idRes:
-            answers = answers.filter(respondant__respondant_id=uuid.UUID(idRes))
+            answers = answers.filter(respondant__pk=(idRes))
         
+        # if initDate is not None and finalDate is not None:
+        #     answers = answers.by_dates(initDate,finalDate)
+        # elif initDate:
+        #     answers = answers.by_dates(initDate,currentDate)
+        # else: #finalDate Not None
+        #     answers = answers.by_dates(currentDate,finalDate)
+
+        # page = self.request.GET.get("page", 1) 
+        # pages = self.request.GET.get("pages", 1000)
+        # if page and pages:
+        #     page_size = pages
+        #     start = (page - 1) * page_size
+        #     end = start + page_size
+
+        # answers = answers[start:end]
+
         return answers
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        idQ= self.request.GET.get("idQ")
+        idRes= self.request.GET.get("idRes")
+        quizzes_ids= Quiz.objects.all().order_by('idQ').values_list('idQ', flat=True).distinct()
+        respondants_ids=(Respondant.objects.filter(respuesta__isnull=False).distinct()
+                                        .order_by('pk')
+                                        .values_list('pk', flat=True))
+        if idQ is not None:
+            respondants_ids.filter(question__respondant_answer_to_question=idQ)
+
+        if idRes is not None:
+            quizzes_ids.filter(question__question_in_each_quiz=idQ)
+
         context["select_quiz_filter"] = self.request.GET.get("idQ") or ""
         context["select_user_filter"] = self.request.GET.get("idRes") or ""
-        context['quizzes_ids'] = Quiz.objects.values_list('idQ', flat=True).distinct()
-        context['respondants_ids'] = Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
+        context['quizzes_ids'] = quizzes_ids
+        context['respondants_ids'] = respondants_ids
+        #context["select_pages"] = self.request.GET.get("pages") or "20"    
         return context
 
 class ShowAnswersFromQuiz(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
-    paginate_by = 20
+    # paginate_by = 20
     pk_url_kwarg = "idQ"
 
     def get_queryset(self):
@@ -327,6 +359,7 @@ class ShowAnswersFromQuiz(LoginRequiredMixin, PaginationBlockMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["idQ"] = self.kwargs["idQ"]
+        context["select_pages"] = self.request.GET.get("pages") or "20"     
         return context
 
 '''Search one respondant selected into a filter from the table of answers'''
@@ -334,7 +367,7 @@ class ShowAnswersFromRespondant(LoginRequiredMixin, PaginationBlockMixin,ListVie
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
-    paginate_by = 20
+    # paginate_by = 20
     pk_url_kwarg = "idRes"
     
     def get_queryset(self):
@@ -346,6 +379,7 @@ class ShowAnswersFromRespondant(LoginRequiredMixin, PaginationBlockMixin,ListVie
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["idRes"] = self.kwargs["idRes"]
+        context["select_pages"] = self.request.GET.get("pages") or "20"     
         return context
 
 def get_answered_by_respondant(request):
@@ -354,7 +388,7 @@ def get_answered_by_respondant(request):
     answers_respondant = answers.by_respondant_summary()
     idRes = request.GET.get('idRes')
     if idRes:
-        answers_respondant = answers_respondant.by_user(uuid.UUID(idRes))
+        answers_respondant = answers_respondant.by_user(idRes)
     return answers_respondant       
   
 '''Show all answers responded by each respondant, their success and quizzes answered'''
@@ -362,30 +396,34 @@ class ShowAnswersByRespondant(LoginRequiredMixin, PaginationBlockMixin,ListView)
     model = Respuesta
     template_name = "answers_users.html"
     context_object_name = "answers"
-    paginate_by = 20
+    # paginate_by = 20
 
     def get_queryset(self):
         return get_answered_by_respondant(self.request)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['respondants_ids'] =  Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)
+        context['respondants_ids'] = (Respondant.objects.filter(respuesta__isnull=False).distinct()
+                                        .order_by('pk')
+                                        .values_list('pk', flat=True))
         context['select_user_filter'] = self.request.GET.get('idRes') or ""
+        context["select_pages"] = self.request.GET.get("pages") or "20"     
         return context
     
 def get_answered_by_quiz(request):
     answers = Respuesta.respuesta_manager.answers_queryset()
-    answers = answers.by_quiz_summary()
     idQ = request.GET.get('idQ')
     if idQ:
         answers = answers.by_quiz(idQ)
+
+    answers = answers.by_quiz_summary()
     return answers
 
 class ShowAnswersByQuiz(LoginRequiredMixin, PaginationBlockMixin,ListView):
         model = Respuesta
         template_name = "answers_quizzes.html"
         context_object_name = "answers"
-        paginate_by = 20
+        # paginate_by = 20
 
         def get_queryset(self):
             return get_answered_by_quiz(self.request)
@@ -400,9 +438,10 @@ class ShowAnswersByQuiz(LoginRequiredMixin, PaginationBlockMixin,ListView):
             context = super().get_context_data(**kwargs)
             context['quizzes_ids'] = Quiz.objects.values_list('idQ', flat=True)
             context['select_quiz_filter'] = self.request.GET.get('idQ') or ""
+            context["select_pages"] = self.request.GET.get("pages") or "20"     
             return context
         
-''' esport all answers by quiz summary'''
+''' export all answers by quiz summary'''
 def export_by_quiz_summary(request):
     answers = get_answered_by_quiz(request)
     # answers = Respuesta.respuesta_manager.answers_queryset()
@@ -450,9 +489,10 @@ def export_answers(request, **kwargs):
 # ----------------- USERS -----------------
 class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respondant
-    paginate_by = 20
+    # paginate_by = 20
     template_name = "users.html"
     context_object_name = "respondants"
+
 
     def get_queryset(self):
         respondants = Respondant.respondant_manager.respondant_queryset()
@@ -465,10 +505,10 @@ class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
         
         # has answered param if filter is true or false if you want to see respondants ids 
         # that has answered a quiz o not
-        has_answered = self.request.GET.get("has_aswered") 
+        has_answered = self.request.GET.get("has_answered") 
         if has_answered: #if not None filter query
             respondants = respondants.answered_respondants(has_answered)
-               
+        
         return respondants
 
     """Return all objects that can be m2m to put in table's header"""
@@ -483,7 +523,8 @@ class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
         context["respondants_ids"]= query_res.values_list('pk', flat=True)
         # Respondant.objects.filter(respuesta__isnull=False).distinct().values_list('respondant_id', flat=True)                      
         context["select_user"] = self.request.GET.get("idRes") or ""
-        context["select_answered"] = self.request.GET.get("has_answered") or ""                
+        context["select_answered"] = self.request.GET.get("has_answered") or ""    
+        context["select_pages"] = self.request.GET.get("pages") or "20"                         
 
         for r in context["respondants"]:
             if hasattr(r, "profesional"):
@@ -595,16 +636,6 @@ def export_users_complex(request):
                 # rest of fields
                 data[rfield.verbose_name] = getattr(r, rfield.name)
 
-        # # Quizzes
-        # r.quizzes = (
-        #     Quiz.objects.filter(question__respondant_answer_to_question=r)
-        #     .distinct()
-        #     .values_list("idQ", flat=True)
-        # )
-
-        # if "Preguntas" in columns:
-        #     columns[columns.index("Preguntas")] = "Quizzes"
-
         data["Cuestionarios"] = r.quizzes #",".join(str(q) for q in r.quizzes)
 
         if r.academic_level:
@@ -634,11 +665,12 @@ def export_users_complex(request):
                 # tranform true or false into sí o no
                 if isinstance(pfield, models.BooleanField):
                     if getattr(r.profesional, pfield.name) == True:
-                        data[pfield.verbose_name] = "Sí"
+                        data[pfield.verbose_name] = "Si"
                     else:
                         data[pfield.verbose_name] = "No"
-                # assign each profesional field a value
-                data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
+                else:
+                    # assign each profesional field a value
+                    data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
 
             # sectors
             for sec in sectors:
@@ -664,21 +696,11 @@ def export_users_complex(request):
                 if oth_env.enviroment not in default_envs
             )
 
-            # activities
-            # for act in Activity.objects.all().distinct():
-            #     if act.idAct in r.profesional.id_between_activity_profesional.values_list(
-            #         "activity", flat=True
-            #     ):
-            #         data[act.activity] = r.profesional.id_between_activity_profesional.get(
-            #             activity=act.idAct
-            #         ).percentatge
-            #     else:
-            #         data[act.activity] = 0
             for a in activities:
-                data[act.activity] = 0
+                data[a.activity] = 0
 
             for d in r.profesional.id_between_activity_profesional.all():
-                    data[act.activity] = d.percentatge 
+                data[d.activity.activity] = d.percentatge 
 
         # Add each respondant info
         rows.append(data)
@@ -692,7 +714,7 @@ def export_users_complex(request):
 """export users data as m2m binded with commas """
 def export_users_simple(request):
     respondants = Respondant.respondant_manager.respondant_queryset()
-
+    activities = Activity.objects.all().distinct()
     # first build columns their headers
     columns = []
     rfields = Respondant._meta.get_fields()
@@ -746,17 +768,8 @@ def export_users_simple(request):
                 # rest of fields
                 data[rfield.verbose_name] = getattr(r, rfield.name)
 
-        # Quizzes
-        r.quizzes = (
-            Quiz.objects.filter(question__respondant_answer_to_question=r)
-            .distinct()
-            .values_list("idQ", flat=True)
-        )
-        
-        if "Preguntas" in columns:
-            columns[columns.index("Preguntas")] = "Quizzes"
-
-        data["Quizzes"] = ",".join(str(q) for q in r.quizzes)
+        # data["Cuestionarios"] = ",".join(str(q) for q in r.quizzes)
+        data["Cuestionarios"] = r.quizzes
 
         # Speciality
         if r.academic_level:
@@ -778,7 +791,16 @@ def export_users_simple(request):
                 # reverse relations and autocreated out
                 if pfield.auto_created and not pfield.concrete:
                     continue
-                data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
+                # data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
+                # boolean columns transform to Sí o No
+                if isinstance(pfield, models.BooleanField):
+                    if getattr(r.profesional, pfield.name) == True:
+                        data[pfield.verbose_name] = "Sí"
+                    else:
+                        data[pfield.verbose_name] = "No"
+                else:
+                    # rest of fields
+                    data[pfield.verbose_name] = getattr(r.profesional, pfield.name)
 
             # sectors
             data["Sectores"] = ",".join(sec.sector for sec in r.profesional.sectors.all())
@@ -787,15 +809,11 @@ def export_users_simple(request):
             data["Entornos"] = ",".join(env.enviroment for env in r.profesional.enviroments.all())
 
             # activities
-            for act in Activity.objects.all().distinct():
-                if act.idAct in r.profesional.id_between_activity_profesional.values_list(
-                    "activity", flat=True
-                ):
-                    data[act.activity] = r.profesional.id_between_activity_profesional.get(
-                        activity=act.idAct
-                    ).percentatge
-                else:
-                    data[act.activity] = 0
+            for a in activities:
+                data[a.activity] = 0
+
+            for d in r.profesional.id_between_activity_profesional.all():
+                data[d.activity.activity] = d.percentatge 
 
         # Add each respondant info
         rows.append(data)

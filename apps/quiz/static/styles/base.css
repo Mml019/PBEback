@@ -81,6 +81,12 @@ td{
     max-width: 300px;
 }
 
+thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
 /* SELECTS */
 .form-select{
     width: auto;
@@ -91,3 +97,15 @@ td{
     width: min-content;
     height: min-content;
 } */
+
+/* Spinner modal */
+#loading-overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
