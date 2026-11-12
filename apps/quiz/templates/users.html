@@ -11,13 +11,14 @@
   <div id="filters_users">
     <!--Form to select what answers from which respondant show-->
       <form method="GET"  id="filter-user-form" class="d-flex align-items-end justify-content-between">
+        {% csrf_token %}
         <div class="d-inline-flex justify-content-start">
           <div class="mx-2">
             <label for="select_user_filter">Usuario:</label>
             <select aria-label="Usuario" class="form-select mb-2" name="idRes" id="select_user_filter" onchange="this.form.submit()">
-              <option value=""  {% if select_user == "" or not select_user or None %}selected{% endif%}>Todos</option>
+              <option value=""  {% if not select_user or None %}selected{% endif%}>Todos</option>
             {% for id in respondants_ids %}
-              <option value="{{ id }}"  {% if select_user == id %}selected{% endif%}>
+              <option value="{{ id }}"  {% if select_user == id|stringformat:"s" %}selected{% endif%}>
                 {{ id }}
               </option>
             {% endfor %}
@@ -35,8 +36,8 @@
           <div>
             <label for="select_pages_filter">Mostrar:</label>
             <select aria-label="Mostrar" class="form-select mb-2" name="pages" id="select_pages_filter" onchange="this.form.submit()">
-              <option value="" {% if select_pages == "" or not select_pages %}selected{% endif%}>Todos</option>
-              <option value="20" {% if select_pages == "20" %}selected{% endif%}>20</option>
+              {% comment %} <option value="" {% if select_pages == "" or not select_pages %}selected{% endif%}>Todos</option> {% endcomment %}
+              <option value="20" {% if not select_pages or select_pages == "20" %}selected{% endif%}>20</option>
               <option value="50"  {% if select_pages == "50" %}selected{% endif%}>50</option>
               <option value="100" {% if select_pages == "100" %}selected{% endif%}>100</option>
               <option value="1000"  {% if select_pages == "1000" %}selected{% endif%}>1000</option>
@@ -194,13 +195,13 @@
               </select>
             </div>
 
-            <div class="mb-2">
+            {% comment %} <div class="mb-2">
               <label for="pages_select_users">Registros:</label>
               <select id="pages_select_users" name="export_page" class="form-select">
                 <option value="">Todos</option>
                 <option value="{{page_obj.number}}">Esta Página {{page_obj.number}}</option>
               </select>
-            </div>
+            </div> {% endcomment %}
           
         </div>
         <div class="modal-footer">

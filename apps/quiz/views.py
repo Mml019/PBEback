@@ -1,3 +1,4 @@
+from .models import *
 import random
 import uuid
 from datetime import time
@@ -11,7 +12,7 @@ from rest_framework.status import *
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from .models import *
+
 
 
 class QuizViews(APIView):

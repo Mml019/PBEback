@@ -68,7 +68,7 @@ class CoreContent(models.Model):
 
 
 class Question(models.Model):
-     
+         
     idP = models.BigAutoField(primary_key=True)
     numero = models.PositiveIntegerField(default=1,verbose_name="Número")
     statement = models.CharField(max_length=500, unique=True, verbose_name="Enunciado")

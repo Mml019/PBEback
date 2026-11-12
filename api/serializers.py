@@ -5,7 +5,6 @@ from apps.quiz.models import *
 from rest_framework import serializers
 from rest_framework.serializers import ValidationError
 
-
 # The intermediary classes don't have a serializer
 class DimensionSerializer(serializers.ModelSerializer):
     class Meta:

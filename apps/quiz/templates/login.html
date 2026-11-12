@@ -5,6 +5,7 @@
 {% block content %}
   <div class="vstack gap-2 d-flex">
     <form method="post" class="col-md-4 mx-auto mt-4">
+      {% csrf_token %}
       {% if form.non_field_errors %}
         <div class="alert alert-info" role="alert">{{ form.non_field_errors }}</div>
       {% endif %}  

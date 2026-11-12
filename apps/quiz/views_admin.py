@@ -1,6 +1,4 @@
-# from datetime import time as datetime_time
 from django.shortcuts import redirect, render, get_object_or_404, get_list_or_404
-from django import forms
 from django.urls import reverse_lazy
 from django.utils import timezone
 
@@ -8,8 +6,7 @@ from django.utils import timezone
 # import openpyxl as xl
 import pandas as pd
 import io
-import time as time
-import datetime as datetime
+from datetime import time
 from django.db.models.functions import Cast, Round
 from django.db.models import Q, F, FloatField, Count
 # from django.core.paginator import Paginator
@@ -197,7 +194,7 @@ class QuizListView(LoginRequiredMixin, PaginationBlockMixin, ListView):
                         defaults={
                             'numero':i + 1,
                             'statement':row["enunciado"],
-                            'time':datetime.time(0, 0, 30),
+                            'time':time(0, 0, 30),
                             'difficult_level':row["dificultad"],
                             'version':0,
                             'idD':dimensionN,
@@ -265,43 +262,30 @@ class QuestionDetailView(LoginRequiredMixin, BaseQuestionMixin, DetailView):
         "date",
     ]
 
-
-# To modify a question
-class QuestionUpdateView(LoginRequiredMixin, BaseQuestionMixin, UpdateView):
-    template_name = "question.html"
-    context_object_name = "question"
-    fields = [
-        "statement",
-        "idD__dimension",
-        "idD__orden",
-        "idA__int_area",
-        " idA__orden",
-        "idC__core_cont",
-    ]
-
 # ------ SHOW ANSWERS ----------------
 class ShowAnswers(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respuesta
     template_name = "answers.html"
     context_object_name = "answers"
-    # paginate_by = 20
+    paginate_by = 50
     # if you want personalize page range by default 5
     # block_page_size = 10 
 
     def get_queryset(self):
         answers = Respuesta.respuesta_manager.answers_queryset()
         #filter basic view
-        idQ = self.request.GET.get("idQ") or None
-        idRes = self.request.GET.get("idRes") or None
+        idQ = self.request.GET.get("idQ") 
+        idRes = self.request.GET.get("idRes") 
         # initDate = self.request.GET.get("initDate") or None
         # finalDate = self.request.GET.get("finalDate") or None
         # currentDate = timezone.now().date()
+ 
         if idQ:
             answers = answers.filter(question__question_in_each_quiz=idQ)
-
+     
         if idRes:
             answers = answers.filter(respondant__pk=(idRes))
-        
+
         # if initDate is not None and finalDate is not None:
         #     answers = answers.by_dates(initDate,finalDate)
         # elif initDate:
@@ -329,19 +313,15 @@ class ShowAnswers(LoginRequiredMixin, PaginationBlockMixin, ListView):
         respondants_ids=(Respondant.objects.filter(respuesta__isnull=False).distinct()
                                         .order_by('pk')
                                         .values_list('pk', flat=True))
-        if idQ is not None:
-            respondants_ids.filter(question__respondant_answer_to_question=idQ)
 
-        if idRes is not None:
-            quizzes_ids.filter(question__question_in_each_quiz=idQ)
-
-        context["select_quiz_filter"] = self.request.GET.get("idQ") or ""
-        context["select_user_filter"] = self.request.GET.get("idRes") or ""
+        context["select_quiz_filter"] = idQ
+        context["select_user_filter"] = idRes
         context['quizzes_ids'] = quizzes_ids
         context['respondants_ids'] = respondants_ids
         #context["select_pages"] = self.request.GET.get("pages") or "20"    
         return context
 
+# ------------ ANSWERS VIEWS -------------------------
 class ShowAnswersFromQuiz(LoginRequiredMixin, PaginationBlockMixin, ListView):
     model = Respuesta
     template_name = "answers.html"
@@ -440,7 +420,7 @@ class ShowAnswersByQuiz(LoginRequiredMixin, PaginationBlockMixin,ListView):
             context['select_quiz_filter'] = self.request.GET.get('idQ') or ""
             context["select_pages"] = self.request.GET.get("pages") or "20"     
             return context
-        
+# ----------------------- EXPORT ANSWERS ----------------        
 ''' export all answers by quiz summary'''
 def export_by_quiz_summary(request):
     answers = get_answered_by_quiz(request)
@@ -499,7 +479,7 @@ class ShowUsers(LoginRequiredMixin, PaginationBlockMixin, ListView):
 
         # select from users view to filter by user
         idRes=self.request.GET.get("idRes") 
-        # print(idRes)
+        print(type(idRes), idRes)
         if idRes:
             respondants = respondants.filter(pk=idRes)
         

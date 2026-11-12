@@ -6,6 +6,7 @@
 {% block content %}
   <h2>Respuestas resumen {{select_quiz_filter}}</h2>
    <form method="GET" class="d-inline-flex  justify-content-start align-items-start">
+        {% csrf_token %}
         <select class="form-select m-2" name="idQ" id="select_quiz_filter" onchange="this.form.submit()">
           <option value="">Cuestionario</option>
           <option value="">Todos</option>

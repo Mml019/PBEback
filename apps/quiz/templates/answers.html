@@ -10,18 +10,19 @@
   <div class="row d-inline-flex align-items-center">
     <div class="col-8"> 
       <form method="GET" class="d-inline-flex  justify-content-start align-items-start">
+        {% csrf_token %}
         <select class="form-select m-2" name="idQ" id="select_quiz_filter" onchange="this.form.submit()">
           <option value="">Cuestionario</option>
-          <option value="">Todos</option>
+          {% comment %} <option value="">Todos</option> {% endcomment %}
           {% for idQ in quizzes_ids %}
-            <option value="{{idQ}}" {% if select_quiz_filter == idQ %} selected {% endif %}>{{ idQ }}</option>
+            <option value="{{idQ}}" {% if select_quiz_filter == idQ|stringformat:"s" %} selected {% endif %}>{{ idQ }}</option>
           {% endfor %}
         </select>
         <select class="form-select m-2" name="idRes" id="select_user_answ_filter" onchange="this.form.submit()">
           <option value="">Usuario</option>
-          <option value="">Todos</option>
+          {% comment %} <option value="">Todos</option> {% endcomment %}
           {% for id in respondants_ids %}
-            <option value="{{id}}" {% if select_user_filter == id%} selected {% endif %}>{{ id }}</option>
+            <option value="{{id}}" {% if select_user_filter == id|stringformat:"s"%} selected {% endif %}>{{ id }}</option>
           {% endfor %}
         </select>
           {% comment %} <div>
