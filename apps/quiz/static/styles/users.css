@@ -1,0 +1,40 @@
+/*Form*/
+#filter_user_form{
+    display: grid;
+    grid-auto-flow: column;
+    align-items: center;
+}
+
+#users td{
+    font-size: medium;
+    max-width: 400px;
+    white-space: nowrap;
+    overflow-wrap: break-word;
+}
+
+#users th{
+    font-size: large;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+} 
+
+#users .table-responsive {
+    height: max-content;
+    width: max-content;
+    /* width: max-content; */
+    /* overflow: hidden; */
+} 
+    
+/* Spinner modal */
+#loading-overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
